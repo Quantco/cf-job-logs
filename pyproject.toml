@@ -76,4 +76,4 @@ default.extend-ignore-re = [
 ]
 
 [tool.typos.files]
-extend-exclude = ["tests/data/**"]
+extend-exclude = ["tests/data/**", "tests/cassettes/**"]
