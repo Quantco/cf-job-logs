@@ -112,7 +112,7 @@ Agent machine name: 'runnervmr8kkp'"""
 )
 def test_sanitize_logs_shorten_long_files(log_file):
     """Test that sanitize_log_text correctly shortens long log files."""
-    with open(log_file) as f:
+    with open(log_file, encoding="utf-8") as f:
         original_logs = f.read()
 
     sanitized_logs = sanitize_log_text(original_logs)
