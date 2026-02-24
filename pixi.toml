@@ -8,6 +8,8 @@ postinstall = "pip install --no-build-isolation --no-deps --disable-pip-version-
 
 [dependencies]
 python = ">=3.13"
+pydantic = ">=2.12.5,<3"
+httpx = ">=0.28.1,<0.29"
 
 [host-dependencies]
 pip = "*"
@@ -17,6 +19,7 @@ setuptools-scm = "*"
 [feature.test.dependencies]
 pytest = ">=6"
 pytest-cov = "*"
+pytest-asyncio = ">=1.3.0,<2"
 mypy = "*"
 [feature.test.tasks]
 test = "pytest"
