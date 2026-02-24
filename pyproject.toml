@@ -66,3 +66,14 @@ check_untyped_defs = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+
+[tool.typos]
+default.extend-ignore-re = [
+  # Disable spell-checking for an individual line.
+  "(?Rm)^.*(#|//)\\s*spellchecker:disable-line$",
+  # Disable spell-checking for a code block.
+  "(?s)(#|//)\\s*spellchecker:off.*?\\n\\s*(#|//)\\s*spellchecker:on",
+]
+
+[tool.typos.files]
+extend-exclude = ["tests/data/**"]

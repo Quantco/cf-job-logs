@@ -145,9 +145,3 @@ class GitHubContentFile(BaseModel):
             raise ValueError(f"Unsupported encoding: {self.encoding}")
 
         return base64.b64decode(self.content_base64).decode("utf-8")
-
-
-class GithubCommentResponse(BaseModel):
-    """Response from GitHub comment API."""
-
-    html_url: str

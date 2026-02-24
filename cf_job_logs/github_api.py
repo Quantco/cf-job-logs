@@ -15,7 +15,6 @@ import httpx
 from cf_job_logs.models import (
     CheckRun,
     CheckRunsResponse,
-    GithubCommentResponse,
     GitHubContentFile,
     PRFile,
     PullRequestResponse,
@@ -327,38 +326,3 @@ def fetch_recipe_file(
         "Recipe file not found. The recipe might not exist anymore, "
         "or the branch may have been deleted."
     )
-
-
-def post_pr_comment(http_client: httpx.Client, pr_info: PRInfo, comment: str) -> str:
-    """Post a comment on a GitHub PR.
-
-    Args:
-        http_client: The HTTP client to use for the request.
-        pr_info: Parsed PR information.
-        comment: The comment text to post.
-
-    Returns:
-        The html_url of the posted comment.
-
-    Raises:
-        RuntimeError: If posting the comment fails.
-        ValueError: If GITHUB_TOKEN is not set.
-    """
-    if not os.getenv("GITHUB_TOKEN"):
-        raise ValueError(
-            "GITHUB_TOKEN environment variable is required to post comments."
-        )
-
-    try:
-        response = http_client.post(
-            f"{GITHUB_API_BASE}/repos/{pr_info.owner}/{pr_info.repo}/issues/{pr_info.pr_number}/comments",
-            headers=get_github_headers(),
-            json={"body": comment},
-        )
-        logger.debug("Posting comment to GitHub API: %s", response.url)
-        response.raise_for_status()
-        comment_response = GithubCommentResponse.model_validate(response.json())
-
-        return comment_response.html_url
-    except httpx.HTTPError as e:
-        raise RuntimeError(f"Error posting comment: {e}") from e

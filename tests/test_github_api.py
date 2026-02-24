@@ -19,7 +19,6 @@ from cf_job_logs.github_api import (
     fetch_recipe_file,
     get_azure_build_info,
     parse_pr_url,
-    post_pr_comment,
     try_fetch_github_file,
 )
 from cf_job_logs.models import PRBranch, PRRepo, PullRequestResponse
@@ -362,31 +361,6 @@ def test_fetch_recipe_file_raises_recipe_not_found_error(
 
     with pytest.raises(RecipeNotFoundError):
         fetch_recipe_file(mock_client, pr_info, pr_data)
-
-
-@requires_github_token
-def test_post_pr_comment(mock_httpx_client):
-    """Test post_pr_comment posts a comment to a PR and returns the comment URL."""
-    pr_info = PRInfo(owner="conda-forge", repo="mock-repo", pr_number=123)
-    comment_text = "@conda-forge-admin please rerender"
-
-    expected_url = f"https://api.github.com/repos/{pr_info.owner}/{pr_info.repo}/issues/{pr_info.pr_number}/comments"
-    mock_client = mock_httpx_client(
-        json_data={
-            "html_url": "https://github.com/conda-forge/mock-repo/pull/123#issuecomment-456789",
-            "body": comment_text,
-        },
-        expected_url=expected_url,
-        request_method="post",
-    )
-
-    result = post_pr_comment(mock_client, pr_info, comment_text)
-
-    assert (
-        result
-        == "https://github.com/conda-forge/mock-repo/pull/123#issuecomment-456789"
-    )
-    mock_client.post.assert_called_once()
 
 
 def test_fetch_changed_files_in_pr_with_pagination():

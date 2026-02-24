@@ -26,11 +26,6 @@ class FailedStepWithPlatform:
     platform: str
     record: "TimelineRecord"
 
-    @property
-    def is_linux_64(self) -> bool:
-        """Check if this step is for the linux_64 platform."""
-        return "linux" in self.platform.lower() and "64" in self.platform.lower()
-
 
 @dataclass
 class FailedStepWithLog:
