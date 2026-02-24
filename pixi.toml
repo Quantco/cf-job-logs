@@ -5,6 +5,7 @@ platforms = ["osx-arm64", "osx-64", "linux-64", "win-64"]
 
 [tasks]
 postinstall = "pip install --no-build-isolation --no-deps --disable-pip-version-check -e ."
+cf-job-logs = { cmd = "cf-job-logs", depends-on = ["postinstall"] }
 
 [dependencies]
 python = ">=3.13"
