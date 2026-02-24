@@ -1,0 +1,13 @@
+# This file is managed by Copier; DO NOT EDIT OR REMOVE.
+_commit: v0.4.1
+_src_path: https://github.com/quantco/copier-template-python-open-source
+add_autobump_workflow: true
+author_email: manuel.lerchner@quantco.com
+author_name: ManuelLerchnerQC
+github_url: https://github.com/ManuelLerchnerQC/cf-job-logs
+github_user: ManuelLerchnerQC
+minimal_python_version: py313
+project_short_description: A utility for fetching and structuring conda-forge Azure
+    CI logs into clean, agent-readable artifacts.
+project_slug: cf-job-logs
+use_devcontainer: false
