@@ -16,6 +16,10 @@ CASSETTE_DIR = Path(__file__).parent / "cassettes"
 FILTERED_HEADERS = [
     "authorization",
     "Authorization",
+    "X-TFS-Session",
+    "X-TFS-ProcessId",
+    "X-VSS-E2EID",
+    "X-VSS-SenderDeploymentId",
     "X-GitHub-Api-Version",
     "x-ratelimit-limit",
     "x-ratelimit-remaining",
