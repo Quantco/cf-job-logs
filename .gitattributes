@@ -1,1 +1,2 @@
 pixi.lock merge=binary linguist-language=YAML linguist-generated=true
+tests/cassettes/** linguist-generated=true
