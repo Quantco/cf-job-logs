@@ -41,22 +41,22 @@ cf-job-logs list-jobs --all https://github.com/conda-forge/some-feedstock/pull/1
 
 ### Download a job log
 
-Use a job ID from the `list-jobs` output to download its full (raw) log:
+Use a job ID from the `list-jobs` output to download its log (sanitized by default):
 
 ```bash
 cf-job-logs download-log https://github.com/conda-forge/some-feedstock/pull/123 <job_id>
 ```
 
-Or download the sanitized log (timestamps and build noise removed):
+Use `--no-sanitize` to get the raw log with timestamps:
 
 ```bash
-cf-job-logs download-sanitized-log https://github.com/conda-forge/some-feedstock/pull/123 <job_id>
+cf-job-logs download-log --no-sanitize https://github.com/conda-forge/some-feedstock/pull/123 <job_id>
 ```
 
 Output goes to stdout, so you can redirect it to a file:
 
 ```bash
-cf-job-logs download-sanitized-log <pr_url> <job_id> > build.log
+cf-job-logs download-log <pr_url> <job_id> > build.log
 ```
 
 ### Verbose mode

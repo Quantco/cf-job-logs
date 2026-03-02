@@ -122,18 +122,20 @@ def test_list_jobs_prints_header(capsys):
 
 
 def test_download_log(capsys):
-    """download-log prints the raw log for a valid job ID."""
+    """download-log prints sanitized log by default."""
     with (
         patch("sys.argv", ["cf-job-logs", "download-log", PR_URL, "task-1"]),
         PATCH_RECORDS,
         patch(
-            "cf_job_logs.cli._fetch_raw_log", return_value="raw log content here"
+            "cf_job_logs.cli._fetch_raw_log",
+            return_value="2025-01-01T00:00:00.0000000Z ERROR: Build failed",
         ) as mock_fetch,
     ):
         main()
 
     output = capsys.readouterr().out
-    assert "raw log content here" in output
+    assert "2025-01-01T00:00:00" not in output
+    assert "ERROR: Build failed" in output
     mock_fetch.assert_called_once_with("https://example.com/log/1")
 
 
@@ -163,12 +165,12 @@ def test_download_log_job_without_log(capsys):
     assert "has no log" in err
 
 
-def test_download_sanitized_log(capsys):
-    """download-sanitized-log applies sanitization to the log."""
+def test_download_log_no_sanitize(capsys):
+    """download-log --no-sanitize outputs raw log with timestamps."""
     with (
         patch(
             "sys.argv",
-            ["cf-job-logs", "download-sanitized-log", PR_URL, "task-1"],
+            ["cf-job-logs", "download-log", "--no-sanitize", PR_URL, "task-1"],
         ),
         PATCH_RECORDS,
         patch(
@@ -179,18 +181,18 @@ def test_download_sanitized_log(capsys):
         main()
 
     output = capsys.readouterr().out
-    # Timestamps should be stripped
-    assert "2025-01-01T00:00:00" not in output
+    # Timestamps should be preserved
+    assert "2025-01-01T00:00:00" in output
     assert "ERROR: Build failed" in output
     assert "INFO: Done" in output
 
 
-def test_download_sanitized_log_unknown_job_id(capsys):
-    """download-sanitized-log exits with error for unknown job ID."""
+def test_download_log_no_sanitize_unknown_job_id(capsys):
+    """download-log --no-sanitize exits with error for unknown job ID."""
     with (
         patch(
             "sys.argv",
-            ["cf-job-logs", "download-sanitized-log", PR_URL, "no-such-id"],
+            ["cf-job-logs", "download-log", "--no-sanitize", PR_URL, "no-such-id"],
         ),
         PATCH_RECORDS,
         pytest.raises(SystemExit, match="1"),
@@ -201,12 +203,12 @@ def test_download_sanitized_log_unknown_job_id(capsys):
     assert "No job found with ID 'no-such-id'" in err
 
 
-def test_download_sanitized_log_job_without_log(capsys):
-    """download-sanitized-log exits with error when job has no log."""
+def test_download_log_no_sanitize_job_without_log(capsys):
+    """download-log --no-sanitize exits with error when job has no log."""
     with (
         patch(
             "sys.argv",
-            ["cf-job-logs", "download-sanitized-log", PR_URL, "task-3"],
+            ["cf-job-logs", "download-log", "--no-sanitize", PR_URL, "task-3"],
         ),
         PATCH_RECORDS,
         pytest.raises(SystemExit, match="1"),
