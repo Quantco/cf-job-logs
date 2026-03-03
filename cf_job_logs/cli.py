@@ -46,9 +46,7 @@ def _fetch_raw_log(log_url: str) -> str:
 def cmd_list_jobs(args: argparse.Namespace) -> None:
     """List all jobs/tasks with logs for a PR."""
     records = _get_timeline_records(args.pr_url)
-
     name_by_id = {r.id: r.name for r in records}
-
     tasks = [r for r in records if r.log and r.type == "Task"]
 
     if not args.all:
@@ -71,7 +69,6 @@ def cmd_list_jobs(args: argparse.Namespace) -> None:
 
 def _get_record_with_log(pr_url: str, job_id: str) -> TimelineRecord:
     """Find a timeline record by ID and verify it has a log."""
-
     records = _get_timeline_records(pr_url)
 
     record = next((r for r in records if r.id == job_id), None)
