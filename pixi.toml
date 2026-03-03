@@ -20,6 +20,7 @@ setuptools-scm = "*"
 pytest = ">=6"
 pytest-cov = "*"
 pytest-asyncio = ">=1.3.0,<2"
+pytest-vcr = "*"
 mypy = "*"
 [feature.test.tasks]
 test = "pytest"
