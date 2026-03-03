@@ -13,14 +13,17 @@ from cf_job_logs.cli import main
 # Azure DevOps timestamp format: 2026-02-26T13:28:29.6495286Z
 AZURE_TIMESTAMP_PATTERN = re.compile(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+Z")
 
-TEST_PR_URLS: list[tuple[str, str]] = [
-    ("bun-feedstock-pr10", "https://github.com/conda-forge/bun-feedstock/pull/10"),
+TEST_PR_URLS = [
+    pytest.param(
+        "https://github.com/conda-forge/bun-feedstock/pull/10",
+        id="bun-feedstock-pr10",
+    ),
 ]
 
 
 @pytest.mark.vcr
-@pytest.mark.parametrize("_name,pr_url", TEST_PR_URLS, ids=[t[0] for t in TEST_PR_URLS])
-def test_list_jobs(_name: str, pr_url: str, capsys):
+@pytest.mark.parametrize("pr_url", TEST_PR_URLS)
+def test_list_jobs(pr_url: str, capsys):
     """Test list-jobs --all shows all jobs including succeeded."""
     with patch("sys.argv", ["cf-job-logs", "list-jobs", "--all", pr_url]):
         main()
@@ -39,8 +42,8 @@ def test_list_jobs(_name: str, pr_url: str, capsys):
 
 
 @pytest.mark.vcr
-@pytest.mark.parametrize("_name,pr_url", TEST_PR_URLS, ids=[t[0] for t in TEST_PR_URLS])
-def test_list_jobs_failed_only(_name: str, pr_url: str, capsys):
+@pytest.mark.parametrize("pr_url", TEST_PR_URLS)
+def test_list_jobs_failed_only(pr_url: str, capsys):
     """Test list-jobs (default) shows only failed jobs."""
     with patch("sys.argv", ["cf-job-logs", "list-jobs", pr_url]):
         main()
@@ -59,8 +62,8 @@ def test_list_jobs_failed_only(_name: str, pr_url: str, capsys):
 
 
 @pytest.mark.vcr
-@pytest.mark.parametrize("_name,pr_url", TEST_PR_URLS, ids=[t[0] for t in TEST_PR_URLS])
-def test_full_workflow(_name: str, pr_url: str, capsys):
+@pytest.mark.parametrize("pr_url", TEST_PR_URLS)
+def test_full_workflow(pr_url: str, capsys):
     """Test full workflow: list jobs, pick a failing one, download its log."""
     # Step 1: List failed jobs (cf-job-logs list-jobs PR_URL)
     with patch("sys.argv", ["cf-job-logs", "list-jobs", pr_url]):
