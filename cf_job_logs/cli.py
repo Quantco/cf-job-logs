@@ -126,7 +126,5 @@ def download_log(pr_url: str, job_id: str, no_sanitize: bool) -> None:
     print(log_text)
 
 
-
-
 if __name__ == "__main__":
     cli()
