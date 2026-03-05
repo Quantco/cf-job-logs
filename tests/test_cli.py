@@ -5,7 +5,6 @@
 
 from unittest.mock import patch
 
-import pytest
 from click.testing import CliRunner
 
 from cf_job_logs.cli import cli
