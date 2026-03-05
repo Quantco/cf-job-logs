@@ -1,10 +1,10 @@
 # Copyright (c) QuantCo 2025
 # SPDX-License-Identifier: BSD-3-Clause
 
-import argparse
 import logging
 import sys
 
+import click
 import httpx
 
 from cf_job_logs.azure_devops_api import (
@@ -43,13 +43,34 @@ def _fetch_raw_log(log_url: str) -> str:
         return resp.text
 
 
-def cmd_list_jobs(args: argparse.Namespace) -> None:
-    """List all jobs/tasks with logs for a PR."""
-    records = _get_timeline_records(args.pr_url)
+@click.group()
+@click.option("-v", "--verbose", is_flag=True, help="Enable verbose logging.")
+@click.pass_context
+def cli(ctx: click.Context, verbose: bool) -> None:
+    """Fetch and inspect conda-forge Azure CI logs."""
+    ctx.ensure_object(dict)
+    ctx.obj["verbose"] = verbose
+
+    logging.basicConfig(
+        level=logging.DEBUG if verbose else logging.WARNING,
+        format="%(message)s",
+    )
+
+
+@cli.command("list-jobs")
+@click.argument("pr_url")
+@click.option(
+    "--all",
+    is_flag=True,
+    help="List all jobs, not just failed ones.",
+)
+def list_jobs(pr_url: str, all: bool) -> None:
+    """List all jobs for a PR."""
+    records = _get_timeline_records(pr_url)
     name_by_id = {r.id: r.name for r in records}
     tasks = [r for r in records if r.log and r.type == "Task"]
 
-    if not args.all:
+    if not all:
         tasks = [t for t in tasks if t.result == "failed"]
 
     if not tasks:
@@ -83,56 +104,26 @@ def _get_record_with_log(pr_url: str, job_id: str) -> TimelineRecord:
     return record
 
 
-def cmd_download_log(args: argparse.Namespace) -> None:
+@cli.command("download-log")
+@click.argument("pr_url")
+@click.argument("job_id")
+@click.option(
+    "--no-sanitize",
+    is_flag=True,
+    help="Output the raw log without removing timestamps and build noise.",
+)
+def download_log(pr_url: str, job_id: str, no_sanitize: bool) -> None:
     """Download the log of a job."""
-    record = _get_record_with_log(args.pr_url, args.job_id)
+    record = _get_record_with_log(pr_url, job_id)
     assert record.log is not None  # guaranteed by _get_record_with_log
     log_text = _fetch_raw_log(record.log.url)
-    if not args.no_sanitize:
+    if not no_sanitize:
         log_text = sanitize_log_text(log_text)
     print(log_text)
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(
-        prog="cf-job-logs",
-        description="Fetch and inspect conda-forge Azure CI logs.",
-    )
-    parser.add_argument(
-        "-v", "--verbose", action="store_true", help="Enable verbose logging."
-    )
-
-    subparsers = parser.add_subparsers(dest="command", required=True)
-
-    # list-jobs
-    list_parser = subparsers.add_parser("list-jobs", help="List all jobs for a PR.")
-    list_parser.add_argument("pr_url", help="GitHub PR URL.")
-    list_parser.add_argument(
-        "--all",
-        action="store_true",
-        help="List all jobs, not just failed ones.",
-    )
-    list_parser.set_defaults(func=cmd_list_jobs)
-
-    # download-log
-    dl_parser = subparsers.add_parser("download-log", help="Download the log of a job.")
-    dl_parser.add_argument("pr_url", help="GitHub PR URL.")
-    dl_parser.add_argument("job_id", help="Job ID from list-jobs output.")
-    dl_parser.add_argument(
-        "--no-sanitize",
-        action="store_true",
-        help="Output the raw log without removing timestamps and build noise.",
-    )
-    dl_parser.set_defaults(func=cmd_download_log)
-
-    args = parser.parse_args()
-
-    logging.basicConfig(
-        level=logging.DEBUG if args.verbose else logging.WARNING,
-        format="%(message)s",
-    )
-
-    args.func(args)
+    cli(prog_name="cf-job-logs")
 
 
 if __name__ == "__main__":

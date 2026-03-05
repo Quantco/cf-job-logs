@@ -6,8 +6,9 @@
 from unittest.mock import patch
 
 import pytest
+from click.testing import CliRunner
 
-from cf_job_logs.cli import main
+from cf_job_logs.cli import cli
 from cf_job_logs.models import LogInfo, TimelineRecord
 
 SAMPLE_RECORDS = [
@@ -44,48 +45,39 @@ PATCH_RECORDS = patch(
 PATCH_RECORDS_EMPTY = patch("cf_job_logs.cli._get_timeline_records", return_value=[])
 
 
-def test_list_jobs_empty(capsys):
+def test_list_jobs_empty():
     """Empty timeline prints a message."""
-    with (
-        patch("sys.argv", ["cf-job-logs", "list-jobs", PR_URL]),
-        PATCH_RECORDS_EMPTY,
-    ):
-        main()
+    runner = CliRunner()
+    with PATCH_RECORDS_EMPTY:
+        result = runner.invoke(cli, ["list-jobs", PR_URL])
 
-    output = capsys.readouterr().out
-    assert "No tasks with logs found." in output
+    assert result.exit_code == 0
+    assert "No tasks with logs found." in result.output
 
 
-def test_download_log_unknown_job_id(capsys):
+def test_download_log_unknown_job_id():
     """download-log exits with error for unknown job ID."""
-    with (
-        patch("sys.argv", ["cf-job-logs", "download-log", PR_URL, "no-such-id"]),
-        PATCH_RECORDS,
-        pytest.raises(SystemExit, match="1"),
-    ):
-        main()
+    runner = CliRunner()
+    with PATCH_RECORDS:
+        result = runner.invoke(cli, ["download-log", PR_URL, "no-such-id"])
 
-    err = capsys.readouterr().err
-    assert "No job found with ID 'no-such-id'" in err
+    assert result.exit_code == 1
+    assert "No job found with ID 'no-such-id'" in result.output
 
 
-def test_download_log_job_without_log(capsys):
+def test_download_log_job_without_log():
     """download-log exits with error when job has no log."""
-    with (
-        patch("sys.argv", ["cf-job-logs", "download-log", PR_URL, "task-without-log"]),
-        PATCH_RECORDS,
-        pytest.raises(SystemExit, match="1"),
-    ):
-        main()
+    runner = CliRunner()
+    with PATCH_RECORDS:
+        result = runner.invoke(cli, ["download-log", PR_URL, "task-without-log"])
 
-    err = capsys.readouterr().err
-    assert "has no log" in err
+    assert result.exit_code == 1
+    assert "has no log" in result.output
 
 
 def test_no_command_exits():
     """Running without a subcommand exits with error."""
-    with (
-        patch("sys.argv", ["cf-job-logs"]),
-        pytest.raises(SystemExit, match="2"),
-    ):
-        main()
+    runner = CliRunner()
+    result = runner.invoke(cli, [])
+
+    assert result.exit_code != 0
