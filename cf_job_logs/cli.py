@@ -43,7 +43,7 @@ def _fetch_raw_log(log_url: str) -> str:
         return resp.text
 
 
-@click.group()
+@click.group(invoke_without_command=True)
 @click.option("-v", "--verbose", is_flag=True, help="Enable verbose logging.")
 @click.pass_context
 def cli(ctx: click.Context, verbose: bool) -> None:
@@ -55,6 +55,10 @@ def cli(ctx: click.Context, verbose: bool) -> None:
         level=logging.DEBUG if verbose else logging.WARNING,
         format="%(message)s",
     )
+
+    # Show help if no subcommand is provided
+    if ctx.invoked_subcommand is None:
+        click.echo(ctx.get_help())
 
 
 @cli.command("list-jobs")
