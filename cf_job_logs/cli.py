@@ -127,7 +127,6 @@ def download_log(pr_url: str, job_id: str, no_sanitize: bool) -> None:
 
 
 def main() -> None:
-    cli(prog_name="cf-job-logs")
 
 
 if __name__ == "__main__":
