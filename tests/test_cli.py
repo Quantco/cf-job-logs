@@ -76,8 +76,11 @@ def test_download_log_job_without_log():
 
 
 def test_no_command_exits():
-    """Running without a subcommand exits with error."""
+    """Running without a subcommand shows help."""
     runner = CliRunner()
     result = runner.invoke(cli, [])
 
-    assert result.exit_code != 0
+    # Click shows help by default when no command is given (exit code 0)
+    assert result.exit_code == 0
+    assert "Usage:" in result.output
+    assert "Commands:" in result.output
