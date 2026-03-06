@@ -15,7 +15,7 @@ classifiers = [
 ]
 requires-python = ">=3.13"
 readme = "README.md"
-dependencies = ["click", "httpx", "pydantic"]
+dependencies = ["click >=8.0.0", "httpx >=0.28.1,<0.29", "pydantic >=2.12.5,<3"]
 
 [project.urls]
 repository = "https://github.com/quantco/cf-job-logs"
