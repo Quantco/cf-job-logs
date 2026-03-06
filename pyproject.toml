@@ -24,7 +24,7 @@ repository = "https://github.com/quantco/cf-job-logs"
 include = ["cf_job_logs"]
 
 [project.scripts]
-cf-job-logs = "cf_job_logs.cli:main"
+cf-job-logs = "cf_job_logs.cli:cli"
 
 [tool.ruff]
 line-length = 88
