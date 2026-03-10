@@ -3,6 +3,7 @@
 
 """Unit tests for CLI error cases that are hard to test with VCR."""
 
+import json
 from unittest.mock import patch
 
 from click.testing import CliRunner
@@ -72,6 +73,56 @@ def test_download_log_job_without_log():
 
     assert result.exit_code == 1
     assert "has no log" in result.output
+
+
+def test_list_jobs_json_format():
+    """list-jobs with --json outputs proper JSON."""
+    runner = CliRunner()
+    with PATCH_RECORDS:
+        result = runner.invoke(cli, ["list-jobs", PR_URL, "--json"])
+
+    assert result.exit_code == 0
+    data = json.loads(result.output)
+    assert isinstance(data, list)
+    assert len(data) == 1
+    assert data[0]["id"] == "task-1"
+    assert data[0]["result"] == "failed"
+    assert data[0]["platform"] == "linux_64"
+    assert data[0]["name"] == "Run build"
+
+
+def test_list_jobs_json_empty():
+    """list-jobs with --json outputs empty array when no tasks found."""
+    runner = CliRunner()
+    with PATCH_RECORDS_EMPTY:
+        result = runner.invoke(cli, ["list-jobs", PR_URL, "--json"])
+
+    assert result.exit_code == 0
+    data = json.loads(result.output)
+    assert data == []
+
+
+def test_list_jobs_json_all_flag():
+    """list-jobs with --json and --all includes all tasks."""
+    records = SAMPLE_RECORDS + [
+        TimelineRecord(
+            id="task-2",
+            parentId="job-1",
+            type="Task",
+            name="Test",
+            result="succeeded",
+            log=LogInfo(url="https://example.com/log/2"),
+        ),
+    ]
+    with patch("cf_job_logs.cli._get_timeline_records", return_value=records):
+        runner = CliRunner()
+        result = runner.invoke(cli, ["list-jobs", PR_URL, "--json", "--all"])
+
+    assert result.exit_code == 0
+    data = json.loads(result.output)
+    assert len(data) == 2
+    assert data[0]["id"] == "task-1"
+    assert data[1]["id"] == "task-2"
 
 
 def test_no_command_exits():

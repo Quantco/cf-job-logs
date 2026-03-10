@@ -1,6 +1,7 @@
 # Copyright (c) QuantCo 2025
 # SPDX-License-Identifier: BSD-3-Clause
 
+import json
 import logging
 import sys
 
@@ -68,7 +69,13 @@ def cli(ctx: click.Context, verbose: bool) -> None:
     is_flag=True,
     help="List all jobs, not just failed ones.",
 )
-def list_jobs(pr_url: str, all: bool) -> None:
+@click.option(
+    "--json",
+    "output_json",
+    is_flag=True,
+    help="Output in JSON format.",
+)
+def list_jobs(pr_url: str, all: bool, output_json: bool) -> None:
     """List all jobs for a PR."""
     records = _get_timeline_records(pr_url)
     name_by_id = {r.id: r.name for r in records}
@@ -78,18 +85,36 @@ def list_jobs(pr_url: str, all: bool) -> None:
         tasks = [t for t in tasks if t.result == "failed"]
 
     if not tasks:
-        print("No tasks with logs found.")
+        if output_json:
+            print(json.dumps([]))
+        else:
+            print("No tasks with logs found.")
         return
 
-    print(f"{'ID':<40} {'Result':<12} {'Platform':<30} {'Name'}")
-    print("-" * 120)
-
+    output = []
     for task in tasks:
         platform = (
             name_by_id.get(task.parent_id, "Unknown") if task.parent_id else "Unknown"
         )
         result = task.result or "pending"
-        print(f"{task.id:<40} {result:<12} {platform:<30} {task.name}")
+        output.append(
+            {
+                "id": task.id,
+                "result": result,
+                "platform": platform,
+                "name": task.name,
+            }
+        )
+
+    if output_json:
+        print(json.dumps(output, indent=2))
+    else:
+        print(f"{'ID':<40} {'Result':<12} {'Platform':<30} {'Name'}")
+        print("-" * 120)
+        for entry in output:
+            print(
+                f"{entry['id']:<40} {entry['result']:<12} {entry['platform']:<30} {entry['name']}"
+            )
 
 
 def _get_record_with_log(pr_url: str, job_id: str) -> TimelineRecord:
