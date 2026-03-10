@@ -8,17 +8,14 @@ import sys
 import click
 import httpx
 
-from cf_job_logs.azure_devops_api import (
-    fetch_azure_steps,
-    sanitize_log_text,
-)
+from cf_job_logs.fetch_records import fetch_timeline_records
 from cf_job_logs.github_api import (
     fetch_github_check_runs,
     fetch_pr_details,
-    get_azure_build_info,
     parse_pr_url,
 )
 from cf_job_logs.models import TimelineRecord
+from cf_job_logs.sanitize import sanitize_log_text
 
 logger = logging.getLogger(__name__)
 
@@ -32,8 +29,7 @@ def _get_timeline_records(pr_url: str) -> list[TimelineRecord]:
         pr_details = fetch_pr_details(client, pr_info)
         head_sha = pr_details.head.sha
         check_runs = fetch_github_check_runs(client, pr_info, head_sha)
-        build_id, project_id = get_azure_build_info(check_runs)
-        return fetch_azure_steps(client, project_id, build_id)
+        return fetch_timeline_records(client, check_runs, pr_info)
 
 
 def _fetch_raw_log(log_url: str) -> str:

@@ -98,18 +98,21 @@ def test_fetch_github_check_runs(mock_httpx_client):
         json_data={
             "check_runs": [
                 {
+                    "id": 1,
                     "conclusion": None,
                     "external_id": "12345|11111|still-running-1",
                     "name": "linux_64",
                     "app": {"slug": "azure-pipelines"},
                 },
                 {
+                    "id": 2,
                     "conclusion": "failure",
                     "external_id": "12345|67890|abc-def-ghi",
                     "name": "win_64",
                     "app": {"slug": "azure-pipelines"},
                 },
                 {
+                    "id": 3,
                     "conclusion": "success",
                     "external_id": "other|99999|other-id",
                     "name": "other-check",
