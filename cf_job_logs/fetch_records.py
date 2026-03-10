@@ -11,7 +11,6 @@ import httpx
 from cf_job_logs.azure_devops_api import fetch_azure_steps
 from cf_job_logs.github_api import (
     NoCompletedCheckRunsError,
-    PRInfo,
     get_azure_build_info,
 )
 from cf_job_logs.models import CheckRun, TimelineRecord
@@ -40,7 +39,6 @@ class FailedStepWithLog:
 def fetch_timeline_records(
     http_client: httpx.Client,
     check_runs: list[CheckRun],
-    pr_info: PRInfo,
 ) -> list[TimelineRecord]:
     """Fetch CI records for given GitHub check runs. Handles both Azure DevOps and GitHub Actions records.
 

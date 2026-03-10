@@ -29,7 +29,7 @@ def _get_timeline_records(pr_url: str) -> list[TimelineRecord]:
         pr_details = fetch_pr_details(client, pr_info)
         head_sha = pr_details.head.sha
         check_runs = fetch_github_check_runs(client, pr_info, head_sha)
-        return fetch_timeline_records(client, check_runs, pr_info)
+        return fetch_timeline_records(client, check_runs)
 
 
 def _fetch_raw_log(log_url: str) -> str:
