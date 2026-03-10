@@ -18,7 +18,7 @@ class BuildLogsUnavailableError(Exception):
 def fetch_azure_steps(
     http_client: httpx.Client, project_id: str, build_id: str
 ) -> list[TimelineRecord]:
-    """Fetches FailedSteps from Azure DevOps timeline.
+    """Fetch timeline records from the Azure DevOps build timeline.
 
     Args:
         http_client: The HTTP client to use for requests.
@@ -26,7 +26,7 @@ def fetch_azure_steps(
         build_id: The build ID.
 
     Returns:
-        List of failed steps with their platform information.
+        List of timeline records returned by the Azure DevOps timeline API.
 
     Raises:
         BuildLogsUnavailableError: If the build timeline is not found (404).
@@ -39,9 +39,13 @@ def fetch_azure_steps(
         logger.debug("Fetching timeline from Azure DevOps API: %s", timeline_resp.url)
         timeline_resp.raise_for_status()
         data = timeline_resp.json()
+        if "records" not in data:
+            raise RuntimeError(
+                "Malformed Azure DevOps timeline response: missing 'records' field"
+            )
         return [
             TimelineRecord.model_validate(record_data)
-            for record_data in data.get("records", [])
+            for record_data in data["records"]
         ]
     except httpx.HTTPError as e:
         if isinstance(e, httpx.HTTPStatusError) and e.response.status_code == 404:

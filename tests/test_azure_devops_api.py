@@ -8,8 +8,8 @@ import pytest
 from cf_job_logs.azure_devops_api import BuildLogsUnavailableError, fetch_azure_steps
 
 
-def test_fetch_azure_records(mock_httpx_client):
-    """Test fetch_azure_records returns azure records from Azure DevOps API."""
+def test_fetch_azure_steps(mock_httpx_client):
+    """Test fetch_azure_steps returns timeline records from the Azure DevOps API."""
     project_id = "test-project-id"
     build_id = "12345"
 
@@ -46,8 +46,8 @@ def test_fetch_azure_records(mock_httpx_client):
     mock_client.get.assert_called_once()
 
 
-def test_fetch_azure_records_handles_http_error(mock_httpx_client):
-    """Test fetch_azure_records raises RuntimeError when HTTP request fails."""
+def test_fetch_azure_steps_handles_http_error(mock_httpx_client):
+    """Test fetch_azure_steps raises RuntimeError when the HTTP request fails."""
     project_id = "test-project-id"
     build_id = "12345"
 
@@ -63,8 +63,8 @@ def test_fetch_azure_records_handles_http_error(mock_httpx_client):
     mock_client.get.assert_called_once()
 
 
-def test_fetch_azure_records_raises_build_logs_unavailable_on_404(mock_httpx_client):
-    """Test fetch_azure_records raises BuildLogsUnavailableError on 404."""
+def test_fetch_azure_steps_raises_build_logs_unavailable_on_404(mock_httpx_client):
+    """Test fetch_azure_steps raises BuildLogsUnavailableError on a 404 response."""
     project_id = "test-project-id"
     build_id = "12345"
 

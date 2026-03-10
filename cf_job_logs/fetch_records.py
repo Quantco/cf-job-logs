@@ -40,27 +40,27 @@ def fetch_timeline_records(
     http_client: httpx.Client,
     check_runs: list[CheckRun],
 ) -> list[TimelineRecord]:
-    """Fetch CI records for given GitHub check runs. Handles both Azure DevOps and GitHub Actions records.
+    """Fetch Azure Pipelines timeline records for the given GitHub check runs.
 
     Args:
         http_client: The HTTP client to use for requests.
         check_runs: List of GitHub check runs from the PR.
-        pr_info: Information about the PR (owner, repo, pr_number).
+
     Returns:
-        List of CI records from both Azure DevOps and GitHub Actions.
+        List of timeline records from completed Azure Pipelines check runs.
     """
 
     records: list[TimelineRecord] = []
 
-    azure_steps = [
+    azure_check_runs = [
         cr
         for cr in check_runs
         if cr.app.slug == "azure-pipelines" and cr.conclusion is not None
     ]
 
-    if azure_steps:
+    if azure_check_runs:
         try:
-            build_id, project_id = get_azure_build_info(azure_steps)
+            build_id, project_id = get_azure_build_info(azure_check_runs)
             records.extend(fetch_azure_steps(http_client, project_id, build_id))
         except NoCompletedCheckRunsError:
             pass  # No completed Azure check runs, continue
