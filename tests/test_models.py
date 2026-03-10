@@ -2,8 +2,13 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 
+import pytest
+
 from cf_job_logs.models import (
     CheckRun,
+    CIProvider,
+    CIResult,
+    GitHubActionsRecord,
     GithubApp,
     LogInfo,
     TimelineRecord,
@@ -17,7 +22,7 @@ def test_timeline_record_html_url():
         parentId="7b6f2c87-f3a7-5133-8d84-7c03a75d9dfc&t=9eb77fd2-8ddd-5444-8fc0-71cb28dcb736",
         type="Task",
         name="Build",
-        result="failed",
+        result=CIResult.FAILED,
         log=LogInfo(
             url="https://dev.azure.com/conda-forge/feedstock-builds/_apis/build/builds/1394602/logs/4"
         ),
@@ -37,7 +42,7 @@ def test_timeline_record_html_url_with_line_number():
         parentId="7b6f2c87-f3a7-5133-8d84-7c03a75d9dfc&t=9eb77fd2-8ddd-5444-8fc0-71cb28dcb736",
         type="Task",
         name="Build",
-        result="failed",
+        result=CIResult.FAILED,
         log=LogInfo(
             url="https://dev.azure.com/conda-forge/feedstock-builds/_apis/build/builds/1394602/logs/4"
         ),
@@ -57,7 +62,7 @@ def test_timeline_record_html_url_without_log():
         parentId="job-456",
         type="Task",
         name="Build",
-        result="failed",
+        result=CIResult.FAILED,
         log=None,
     )
 
@@ -69,6 +74,7 @@ def test_timeline_record_html_url_without_log():
 def test_check_run_build_info():
     """Test CheckRun model can be instantiated with a conclusion."""
     check_run = CheckRun(
+        id=1,
         conclusion="failure",
         external_id="12345|67890|abc-def-ghi",
         name="Test Check",
@@ -78,3 +84,54 @@ def test_check_run_build_info():
     build_id, project_id = check_run.build_info
     assert build_id == "67890"
     assert project_id == "abc-def-ghi"
+
+
+def test_github_actions_record_defaults():
+    """Test GitHubActionsRecord has correct defaults for type and parent_id."""
+    record = GitHubActionsRecord(
+        id="12345",
+        parentId=None,
+        name="Build",
+        result=CIResult.FAILED,
+    )
+
+    assert record.type == "Task"
+    assert record.parent_id is None
+    assert record.ci_provider == CIProvider.GITHUB_ACTIONS
+
+
+def test_github_actions_record_from_check_run():
+    """Test GitHubActionsRecord can be created from a CheckRun."""
+    check_run = CheckRun(
+        id=12345,
+        conclusion="failure",
+        external_id="",
+        name="Build linux-64",
+        app=GithubApp(slug="github-actions"),
+    )
+
+    record = GitHubActionsRecord.from_check_run(check_run, owner="owner", repo="repo")
+
+    assert record.id == "12345"
+    assert record.name == "Build linux-64"
+    assert record.ci_provider == CIProvider.GITHUB_ACTIONS
+    assert record.result == CIResult.FAILED
+    assert record.log
+    assert (
+        record.log.url
+        == "https://api.github.com/repos/owner/repo/actions/jobs/12345/logs"
+    )
+
+
+@pytest.mark.parametrize(
+    "alias,expected",
+    [
+        ("success", CIResult.SUCCEEDED),
+        ("failure", CIResult.FAILED),
+        ("cancelled", CIResult.CANCELED),
+        ("timed_out", CIResult.ABANDONED),
+    ],
+)
+def test_ci_result_normalizes_github_conclusions(alias: str, expected: CIResult):
+    """CIResult._missing_ normalizes GitHub Actions conclusion strings."""
+    assert CIResult(alias) == expected

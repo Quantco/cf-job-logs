@@ -9,7 +9,7 @@ from unittest.mock import patch
 from click.testing import CliRunner
 
 from cf_job_logs.cli import cli
-from cf_job_logs.models import LogInfo, TimelineRecord
+from cf_job_logs.models import CIResult, GitHubActionsRecord, LogInfo, TimelineRecord
 
 SAMPLE_RECORDS = [
     TimelineRecord(
@@ -17,7 +17,7 @@ SAMPLE_RECORDS = [
         parentId=None,
         type="Job",
         name="linux_64",
-        result="failed",
+        result=CIResult.FAILED,
         log=None,
     ),
     TimelineRecord(
@@ -25,7 +25,7 @@ SAMPLE_RECORDS = [
         parentId="job-1",
         type="Task",
         name="Run build",
-        result="failed",
+        result=CIResult.FAILED,
         log=LogInfo(url="https://example.com/log/1"),
     ),
     TimelineRecord(
@@ -33,20 +33,32 @@ SAMPLE_RECORDS = [
         parentId="job-1",
         type="Task",
         name="Checkout",
-        result="succeeded",
+        result=CIResult.SUCCEEDED,
         log=None,
+    ),
+    GitHubActionsRecord(
+        id="gha-1",
+        parentId=None,
+        name="linux_64_github_actions",
+        result=CIResult.SKIPPED,
+        log=None,
+    ),
+    GitHubActionsRecord(
+        id="gha-2",
+        parentId="gha-1",
+        name="Run tests",
+        result=CIResult.FAILED,
+        log=LogInfo(url="https://example.com/log/2"),
     ),
 ]
 
 PR_URL = "https://github.com/conda-forge/some-feedstock/pull/42"
-PATCH_RECORDS = patch(
-    "cf_job_logs.cli._get_timeline_records", return_value=SAMPLE_RECORDS
-)
-PATCH_RECORDS_EMPTY = patch("cf_job_logs.cli._get_timeline_records", return_value=[])
+PATCH_RECORDS = patch("cf_job_logs.cli._get_ci_records", return_value=SAMPLE_RECORDS)
+PATCH_RECORDS_EMPTY = patch("cf_job_logs.cli._get_ci_records", return_value=[])
 
 
 def test_list_jobs_empty():
-    """Empty timeline prints a message."""
+    """Empty CI prints a message."""
     runner = CliRunner()
     with PATCH_RECORDS_EMPTY:
         result = runner.invoke(cli, ["list-jobs", PR_URL])
@@ -84,11 +96,19 @@ def test_list_jobs_json_format():
     assert result.exit_code == 0
     data = json.loads(result.output)
     assert isinstance(data, list)
-    assert len(data) == 1
-    assert data[0]["id"] == "task-1"
-    assert data[0]["result"] == "failed"
-    assert data[0]["platform"] == "linux_64"
-    assert data[0]["name"] == "Run build"
+    assert len(data) == 2
+    assert data[0] == {
+        "id": "task-1",
+        "result": "failed",
+        "platform": "linux_64",
+        "name": "Run build",
+    }
+    assert data[1] == {
+        "id": "gha-2",
+        "result": "failed",
+        "platform": "linux_64_github_actions",
+        "name": "Run tests",
+    }
 
 
 def test_list_jobs_json_empty():
@@ -110,19 +130,20 @@ def test_list_jobs_json_all_flag():
             parentId="job-1",
             type="Task",
             name="Test",
-            result="succeeded",
+            result=CIResult.SUCCEEDED,
             log=LogInfo(url="https://example.com/log/2"),
         ),
     ]
-    with patch("cf_job_logs.cli._get_timeline_records", return_value=records):
+    with patch("cf_job_logs.cli._get_ci_records", return_value=records):
         runner = CliRunner()
         result = runner.invoke(cli, ["list-jobs", PR_URL, "--json", "--all"])
 
     assert result.exit_code == 0
     data = json.loads(result.output)
-    assert len(data) == 2
+    assert len(data) == 3
     assert data[0]["id"] == "task-1"
-    assert data[1]["id"] == "task-2"
+    assert data[1]["id"] == "gha-2"
+    assert data[2]["id"] == "task-2"
 
 
 def test_no_command_exits():

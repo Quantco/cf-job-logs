@@ -15,6 +15,7 @@ import httpx
 from cf_job_logs.models import (
     CheckRun,
     CheckRunsResponse,
+    CIProvider,
     GitHubContentFile,
     PRFile,
     PullRequestResponse,
@@ -217,7 +218,7 @@ def get_azure_build_info(
     azure_check_runs = [
         cr
         for cr in check_runs
-        if cr.app.slug == "azure-pipelines" and cr.conclusion is not None
+        if cr.ci_provider == CIProvider.AZURE and cr.conclusion is not None
     ]
 
     # All azure check runs have the same external_id, so we can just pick the first valid one
