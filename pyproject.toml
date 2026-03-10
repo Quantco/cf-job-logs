@@ -23,6 +23,9 @@ repository = "https://github.com/quantco/cf-job-logs"
 [tool.setuptools.packages.find]
 include = ["cf_job_logs"]
 
+[tool.setuptools.package-data]
+cf_job_logs = ["py.typed"]
+
 [project.scripts]
 cf-job-logs = "cf_job_logs.cli:cli"
 
