@@ -6,10 +6,10 @@ from dataclasses import dataclass
 
 import httpx
 
-from cf_job_logs.azure_devops_api import (
+from cf_job_logs.azure_devops_api import fetch_azure_steps
+from cf_job_logs.fetch_records import (
     FailedStepWithLog,
     fetch_all_logs_async,
-    fetch_azure_steps,
     get_failed_steps_with_platform,
 )
 from cf_job_logs.github_api import (
@@ -47,7 +47,6 @@ async def download_pr_async(
     Args:
         pr_url: The GitHub PR URL.
         http_timeout: Timeout for HTTP requests in seconds.
-        progress_callback: Optional callback to report progress messages.
 
     Returns:
         DownloadResult containing recipe, failed steps, pr_info, and check runs.
