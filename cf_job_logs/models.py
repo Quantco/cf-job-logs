@@ -20,22 +20,34 @@ class CIResult(StrEnum):
     SUCCEEDED = "succeeded"
     CANCELED = "canceled"
     SKIPPED = "skipped"
-    ABANDONED = "abandoned"
+
+    # Coerce unknown results to "unknown" instead of raising an error
+    UNKNOWN = "unknown"
 
     @classmethod
     def _missing_(cls, value: object) -> CIResult | None:
-        """Normalize provider-specific result strings."""
+        """Normalize provider-specific result strings.
+
+        Azure: https://learn.microsoft.com/en-us/rest/api/azure/devops/build/timeline/get?view=azure-devops-rest-7.1#taskresult
+        GitHub: https://docs.github.com/rest/actions/workflow-jobs?apiVersion=2022-11-28
+        """
         if not isinstance(value, str):
             return None
 
-        # GitHub actions uses different conclusion strings, see https://docs.github.com/rest/actions/workflow-jobs?apiVersion=2022-11-28
         aliases = {
+            # Azure
+            "abandoned": cls.CANCELED,
+            "succeededWithIssues": cls.SUCCEEDED,
+            # GitHub
             "success": cls.SUCCEEDED,
             "failure": cls.FAILED,
             "cancelled": cls.CANCELED,
-            "timed_out": cls.ABANDONED,
+            "timed_out": cls.FAILED,
+            "action_required": cls.FAILED,
+            "neutral": cls.SUCCEEDED,
+            "stale": cls.FAILED,
         }
-        return aliases.get(value)
+        return aliases.get(value, cls.UNKNOWN)
 
 
 class LogInfo(BaseModel):

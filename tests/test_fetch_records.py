@@ -7,6 +7,7 @@ from unittest.mock import patch
 import httpx
 import pytest
 
+from cf_job_logs.azure_devops_api import BuildLogsUnavailableError
 from cf_job_logs.fetch_records import (
     FailedStepWithPlatform,
     _fetch_log_async,
@@ -282,6 +283,48 @@ def test_fetch_ci_records_returns_only_github_when_azure_raises_no_completed_che
             result = fetch_ci_records(client, check_runs, pr_info)
 
     assert len(result) == 0
+
+
+def test_fetch_ci_records_returns_github_when_azure_logs_unavailable(caplog):
+    """Azure timeline failures should not block GitHub Actions records."""
+    check_runs = [
+        CheckRun(
+            id=1,
+            conclusion="failure",
+            external_id=None,
+            name="Azure build",
+            html_url=None,
+            app=GithubApp(slug="azure-pipelines"),
+        ),
+        CheckRun(
+            id=12345,
+            conclusion="failure",
+            external_id=None,
+            name="Build linux-64",
+            html_url="https://github.com/conda-forge/feedstock/actions/runs/1/job/12345",
+            app=GithubApp(slug="github-actions"),
+        ),
+    ]
+    pr_info = PRInfo(owner="conda-forge", repo="example-feedstock", pr_number=1)
+
+    with httpx.Client() as client:
+        with (
+            patch(
+                "cf_job_logs.fetch_records.get_azure_build_info",
+                return_value=("build-1", "project-1"),
+            ),
+            patch(
+                "cf_job_logs.fetch_records.fetch_azure_steps",
+                side_effect=BuildLogsUnavailableError("Build logs are not available"),
+            ),
+        ):
+            with caplog.at_level("WARNING"):
+                result = fetch_ci_records(client, check_runs, pr_info)
+
+    assert len(result) == 1
+    assert isinstance(result[0], GitHubActionsRecord)
+    assert result[0].id == "12345"
+    assert "Azure build logs are unavailable" in caplog.text
 
 
 def test_fetch_ci_records_skips_github_check_runs_without_conclusion():

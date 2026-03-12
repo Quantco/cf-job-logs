@@ -9,7 +9,7 @@ from typing import assert_never
 
 import httpx
 
-from cf_job_logs.azure_devops_api import fetch_azure_steps
+from cf_job_logs.azure_devops_api import BuildLogsUnavailableError, fetch_azure_steps
 from cf_job_logs.github_api import (
     NoCompletedCheckRunsError,
     PRInfo,
@@ -78,7 +78,11 @@ def fetch_ci_records(
             build_id, project_id = get_azure_build_info(azure_check_runs)
             records.extend(fetch_azure_steps(http_client, project_id, build_id))
         except NoCompletedCheckRunsError:
-            pass  # No completed Azure check runs, continue
+            logger.warning(
+                "No completed Azure check runs found, skipping Azure records."
+            )
+        except BuildLogsUnavailableError as exc:
+            logger.warning("Azure build logs are unavailable: %s", exc)
 
     if github_check_runs:
         records.extend(

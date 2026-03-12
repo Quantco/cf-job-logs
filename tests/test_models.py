@@ -124,14 +124,31 @@ def test_github_actions_record_from_check_run():
 
 
 @pytest.mark.parametrize(
-    "alias,expected",
+    "value,expected",
     [
+        # Direct members
+        ("failed", CIResult.FAILED),
+        ("succeeded", CIResult.SUCCEEDED),
+        ("canceled", CIResult.CANCELED),
+        ("skipped", CIResult.SKIPPED),
+        # Azure aliases
+        ("abandoned", CIResult.CANCELED),
+        ("succeededWithIssues", CIResult.SUCCEEDED),
+        # GitHub aliases
         ("success", CIResult.SUCCEEDED),
         ("failure", CIResult.FAILED),
         ("cancelled", CIResult.CANCELED),
-        ("timed_out", CIResult.ABANDONED),
+        ("timed_out", CIResult.FAILED),
+        ("action_required", CIResult.FAILED),
+        ("neutral", CIResult.SUCCEEDED),
+        ("stale", CIResult.FAILED),
     ],
 )
-def test_ci_result_normalizes_github_conclusions(alias: str, expected: CIResult):
-    """CIResult._missing_ normalizes GitHub Actions conclusion strings."""
-    assert CIResult(alias) == expected
+def test_ci_result_normalizes_provider_values(value: str, expected: CIResult):
+    """CIResult handles all known Azure and GitHub result strings."""
+    assert CIResult(value) == expected
+
+
+def test_ci_result_unknown_value():
+    """Unrecognized result strings resolve to UNKNOWN."""
+    assert CIResult("some_unknown_result") == CIResult.UNKNOWN
