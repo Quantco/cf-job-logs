@@ -3,12 +3,8 @@
 
 import pytest
 
-from cf_job_logs.download import (
-    download_pr_async,
-)
-from cf_job_logs.models import (
-    CIProvider,
-)
+from cf_job_logs.download import download_pr_async
+from cf_job_logs.models import CIProvider
 
 HTTP_TIMEOUT = 60.0
 
