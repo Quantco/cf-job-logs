@@ -1,27 +1,77 @@
 # Copyright (c) QuantCo 2025
 # SPDX-License-Identifier: BSD-3-Clause
+from __future__ import annotations
 
 import base64
+from enum import StrEnum
+from typing import Literal
 from urllib.parse import urlparse
 
 from pydantic import BaseModel, Field
 
 
+class CIProvider(StrEnum):
+    AZURE = "azure-pipelines"
+    GITHUB_ACTIONS = "github-actions"
+
+
+class CIResult(StrEnum):
+    FAILED = "failed"
+    SUCCEEDED = "succeeded"
+    CANCELED = "canceled"
+    SKIPPED = "skipped"
+
+    # Coerce unknown results to "unknown" instead of raising an error
+    UNKNOWN = "unknown"
+
+    @classmethod
+    def _missing_(cls, value: object) -> CIResult | None:
+        """Normalize provider-specific result strings.
+
+        Azure: https://learn.microsoft.com/en-us/rest/api/azure/devops/build/timeline/get?view=azure-devops-rest-7.1#taskresult
+        GitHub: https://docs.github.com/rest/actions/workflow-jobs?apiVersion=2022-11-28
+        """
+        if not isinstance(value, str):
+            return None
+
+        aliases = {
+            # Azure
+            "abandoned": cls.CANCELED,
+            "succeededWithIssues": cls.SUCCEEDED,
+            # GitHub
+            "success": cls.SUCCEEDED,
+            "failure": cls.FAILED,
+            "cancelled": cls.CANCELED,
+            "timed_out": cls.FAILED,
+            "action_required": cls.FAILED,
+            "neutral": cls.SUCCEEDED,
+            "stale": cls.FAILED,
+        }
+        return aliases.get(value, cls.UNKNOWN)
+
+
 class LogInfo(BaseModel):
-    """Information about a log file from Azure DevOps."""
+    """Information about a log file."""
 
     url: str
 
 
-class TimelineRecord(BaseModel):
-    """A timeline record from Azure DevOps."""
+class CIRecord(BaseModel):
+    """Base class for a CI job or task record."""
 
     id: str
+    ci_provider: CIProvider
     parent_id: str | None = Field(None, alias="parentId")
     type: str
     name: str
-    result: str | None
+    result: CIResult | None
     log: LogInfo | None = None
+
+
+class TimelineRecord(CIRecord):
+    """A timeline record from Azure DevOps."""
+
+    ci_provider: Literal[CIProvider.AZURE] = CIProvider.AZURE
 
     def html_url(self, line_number: int | None = None) -> str:
         """Construct the Azure DevOps web UI URL for this timeline record.
@@ -49,10 +99,28 @@ class TimelineRecord(BaseModel):
         return base_url
 
 
-class TimelineResponse(BaseModel):
-    """Response from Azure DevOps timeline API."""
+class GitHubActionsRecord(CIRecord):
+    """A record from GitHub Actions."""
 
-    records: list[TimelineRecord]
+    ci_provider: Literal[CIProvider.GITHUB_ACTIONS] = CIProvider.GITHUB_ACTIONS
+    type: Literal["Task"] = "Task"
+
+    @classmethod
+    def from_check_run(
+        cls, check_run: CheckRun, owner: str, repo: str
+    ) -> GitHubActionsRecord:
+        return cls.model_validate(
+            {
+                "id": str(check_run.id),
+                "parentId": None,
+                "type": "Task",
+                "name": check_run.name,
+                "result": check_run.conclusion,
+                "log": {
+                    "url": f"https://api.github.com/repos/{owner}/{repo}/actions/jobs/{check_run.id}/logs"
+                },
+            }
+        )
 
 
 class GithubApp(BaseModel):
@@ -64,9 +132,11 @@ class GithubApp(BaseModel):
 class CheckRun(BaseModel):
     """A GitHub check run."""
 
+    id: int
     external_id: str | None
     conclusion: str | None
     name: str
+    html_url: str | None = None
     app: GithubApp
 
     @property
@@ -83,6 +153,13 @@ class CheckRun(BaseModel):
 
         _, build_id, project_id = self.external_id.split("|")
         return build_id, project_id
+
+    @property
+    def ci_provider(self) -> CIProvider | None:
+        try:
+            return CIProvider(self.app.slug)
+        except ValueError:
+            return None
 
 
 class CheckRunsResponse(BaseModel):

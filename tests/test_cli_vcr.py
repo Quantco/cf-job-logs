@@ -10,19 +10,22 @@ from click.testing import CliRunner
 
 from cf_job_logs.cli import cli
 
-# Azure DevOps timestamp format: 2026-02-26T13:28:29.6495286Z
-AZURE_TIMESTAMP_PATTERN = re.compile(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+Z")
-
-TEST_PR_URLS = [
-    pytest.param(
-        "https://github.com/conda-forge/bun-feedstock/pull/10",
-        id="bun-feedstock-pr10",
-    ),
-]
+# ISO-8601-style timestamps (Azure and GitHub Actions)
+TIMESTAMP_PATTERN = re.compile(
+    r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})?"
+)
 
 
 @pytest.mark.vcr
-@pytest.mark.parametrize("pr_url", TEST_PR_URLS)
+@pytest.mark.parametrize(
+    "pr_url",
+    [
+        pytest.param(
+            "https://github.com/conda-forge/bun-feedstock/pull/10",
+            id="bun-feedstock-pr10",
+        ),
+    ],
+)
 def test_list_jobs(pr_url: str):
     """Test list-jobs --all shows all jobs including succeeded."""
     runner = CliRunner()
@@ -42,7 +45,15 @@ def test_list_jobs(pr_url: str):
 
 
 @pytest.mark.vcr
-@pytest.mark.parametrize("pr_url", TEST_PR_URLS)
+@pytest.mark.parametrize(
+    "pr_url",
+    [
+        pytest.param(
+            "https://github.com/conda-forge/bun-feedstock/pull/10",
+            id="bun-feedstock-pr10",
+        ),
+    ],
+)
 def test_list_jobs_failed_only(pr_url: str):
     """Test list-jobs (default) shows only failed jobs."""
     runner = CliRunner()
@@ -62,8 +73,22 @@ def test_list_jobs_failed_only(pr_url: str):
 
 
 @pytest.mark.vcr
-@pytest.mark.parametrize("pr_url", TEST_PR_URLS)
-def test_full_workflow(pr_url: str):
+@pytest.mark.parametrize(
+    "pr_url,expected_error",
+    [
+        pytest.param(
+            "https://github.com/conda-forge/bun-feedstock/pull/10",
+            "sha256 checksum validation failed",
+            id="bun-feedstock-pr10",
+        ),
+        pytest.param(
+            "https://github.com/conda-forge/tensorflow-feedstock/pull/473/checks",
+            "package bazel-6.0.0-h12e2e3f_0 requires libprotobuf >=3.21.12,<3.22.0a0, but none of the providers can be installed",
+            id="tensorflow-feedstock-pr473",
+        ),
+    ],
+)
+def test_full_workflow(pr_url: str, expected_error: str):
     """Test full workflow: list jobs, pick a failing one, download its log."""
     runner = CliRunner()
 
@@ -78,31 +103,29 @@ def test_full_workflow(pr_url: str):
     job_lines = [line for line in lines[2:] if line.strip()]
     assert len(job_lines) > 0, "Expected at least one failed job"
 
-    # Parse job ID from first column (first 40 chars)
-    job_id = job_lines[0].split()[0]
-    assert len(job_id) > 0, "Could not parse job ID"
+    for line in job_lines:
+        job_id = line.split()[0]
+        assert len(job_id) > 0, "Could not parse job ID"
 
-    # Step 2: Download the log for this job (cf-job-logs download-log PR_URL JOB_ID)
-    result = runner.invoke(cli, ["download-log", pr_url, job_id])
-    assert result.exit_code == 0
+        # Step 2: Download the log for this job (cf-job-logs download-log PR_URL JOB_ID)
+        result = runner.invoke(cli, ["download-log", pr_url, job_id])
+        assert result.exit_code == 0
 
-    log_output = result.output
-    assert len(log_output) > 0, "Expected log output"
-    # Sanitized logs should not have Azure timestamps
-    assert not AZURE_TIMESTAMP_PATTERN.search(log_output), (
-        "Sanitized log should not contain timestamps"
-    )
+        log_output = result.output
+        assert len(log_output) > 0, "Expected log output"
+        # Sanitized logs should not have timestamps
+        assert not TIMESTAMP_PATTERN.search(log_output), (
+            "Sanitized log should not contain timestamps"
+        )
 
-    assert "Error: " in log_output
-    assert "sha256 checksum validation failed" in log_output
+        assert "Error: " in log_output
+        assert expected_error in log_output
 
-    # Step 3: Download raw log with --no-sanitize
-    result = runner.invoke(cli, ["download-log", "--no-sanitize", pr_url, job_id])
-    assert result.exit_code == 0
+        # Step 3: Download raw log with --no-sanitize
+        result = runner.invoke(cli, ["download-log", "--no-sanitize", pr_url, job_id])
+        assert result.exit_code == 0
 
-    raw_output = result.output
-    assert len(raw_output) > 0, "Expected raw log output"
-    # Raw logs should have timestamps
-    assert AZURE_TIMESTAMP_PATTERN.search(raw_output), (
-        "Raw log should contain timestamps"
-    )
+        raw_output = result.output
+        assert len(raw_output) > 0, "Expected raw log output"
+        # Raw logs should have timestamps
+        assert TIMESTAMP_PATTERN.search(raw_output), "Raw log should contain timestamps"

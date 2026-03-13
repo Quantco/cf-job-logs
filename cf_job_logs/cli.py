@@ -4,17 +4,19 @@
 import json
 import logging
 import sys
+from typing import assert_never
 
 import click
 import httpx
 
-from cf_job_logs.fetch_records import fetch_timeline_records
+from cf_job_logs.fetch_records import fetch_ci_records
 from cf_job_logs.github_api import (
     fetch_github_check_runs,
     fetch_pr_details,
+    get_github_headers,
     parse_pr_url,
 )
-from cf_job_logs.models import TimelineRecord
+from cf_job_logs.models import CIProvider, CIRecord, CIResult
 from cf_job_logs.sanitize import sanitize_log_text
 
 logger = logging.getLogger(__name__)
@@ -22,20 +24,33 @@ logger = logging.getLogger(__name__)
 HTTP_TIMEOUT = 30.0
 
 
-def _get_timeline_records(pr_url: str) -> list[TimelineRecord]:
-    """Fetch Azure DevOps timeline records for a GitHub PR."""
+def _get_ci_records(pr_url: str) -> list[CIRecord]:
+    """Fetch CI records for a GitHub PR."""
     with httpx.Client(timeout=HTTP_TIMEOUT) as client:
         pr_info = parse_pr_url(pr_url)
         pr_details = fetch_pr_details(client, pr_info)
         head_sha = pr_details.head.sha
         check_runs = fetch_github_check_runs(client, pr_info, head_sha)
-        return fetch_timeline_records(client, check_runs)
+        return fetch_ci_records(client, check_runs, pr_info)
 
 
-def _fetch_raw_log(log_url: str) -> str:
-    """Fetch raw log content from Azure DevOps."""
+def _fetch_raw_log(record: CIRecord) -> str:
+    """Fetch raw log content for a provider-specific CI record."""
+
+    if not record.log:
+        raise ValueError(f"Record '{record.name}' has no log information.")
+
     with httpx.Client(timeout=HTTP_TIMEOUT) as client:
-        resp = client.get(log_url, headers={"Accept": "text/plain"})
+        match record.ci_provider:
+            case CIProvider.AZURE:
+                resp = client.get(record.log.url, headers={"Accept": "text/plain"})
+            case CIProvider.GITHUB_ACTIONS:
+                resp = client.get(
+                    record.log.url, headers=get_github_headers(), follow_redirects=True
+                )
+            case _ as unreachable:
+                assert_never(unreachable)
+
         resp.raise_for_status()
         return resp.text
 
@@ -44,7 +59,7 @@ def _fetch_raw_log(log_url: str) -> str:
 @click.option("-v", "--verbose", is_flag=True, help="Enable verbose logging.")
 @click.pass_context
 def cli(ctx: click.Context, verbose: bool) -> None:
-    """Fetch and inspect conda-forge Azure CI logs."""
+    """Fetch and inspect conda-forge CI logs."""
     ctx.ensure_object(dict)
     ctx.obj["verbose"] = verbose
 
@@ -73,12 +88,12 @@ def cli(ctx: click.Context, verbose: bool) -> None:
 )
 def list_jobs(pr_url: str, all: bool, output_json: bool) -> None:
     """List all jobs for a PR."""
-    records = _get_timeline_records(pr_url)
+    records = _get_ci_records(pr_url)
     name_by_id = {r.id: r.name for r in records}
     tasks = [r for r in records if r.log and r.type == "Task"]
 
     if not all:
-        tasks = [t for t in tasks if t.result == "failed"]
+        tasks = [t for t in tasks if t.result == CIResult.FAILED]
 
     if not tasks:
         if output_json:
@@ -113,9 +128,9 @@ def list_jobs(pr_url: str, all: bool, output_json: bool) -> None:
             )
 
 
-def _get_record_with_log(pr_url: str, job_id: str) -> TimelineRecord:
-    """Find a timeline record by ID and verify it has a log."""
-    records = _get_timeline_records(pr_url)
+def _get_record_with_log(pr_url: str, job_id: str) -> CIRecord:
+    """Find a CI record by ID and verify it has a log."""
+    records = _get_ci_records(pr_url)
 
     record = next((r for r in records if r.id == job_id), None)
     if not record:
@@ -140,8 +155,7 @@ def _get_record_with_log(pr_url: str, job_id: str) -> TimelineRecord:
 def download_log(pr_url: str, job_id: str, no_sanitize: bool) -> None:
     """Download the log of a job."""
     record = _get_record_with_log(pr_url, job_id)
-    assert record.log is not None  # guaranteed by _get_record_with_log
-    log_text = _fetch_raw_log(record.log.url)
+    log_text = _fetch_raw_log(record)
     if not no_sanitize:
         log_text = sanitize_log_text(log_text)
     print(log_text)

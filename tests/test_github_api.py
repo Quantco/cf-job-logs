@@ -157,12 +157,14 @@ def test_get_azure_build_info_extracts_build_info():
 
     check_runs = [
         CheckRun(
+            id=1,
             conclusion="success",
             external_id="other|11111|other-id",
             name="other-check",
             app=GithubApp(slug="github-actions"),
         ),
         CheckRun(
+            id=2,
             conclusion="failure",
             external_id="12345|67890|abc-def-ghi",
             name="azure-check",
@@ -184,6 +186,7 @@ def test_get_azure_build_info_raises_when_no_valid_check_runs():
     # No Azure Pipelines check runs
     check_runs = [
         CheckRun(
+            id=1,
             conclusion="success",
             external_id="other|11111|other-id",
             name="other-check",
@@ -199,6 +202,7 @@ def test_get_azure_build_info_raises_when_no_valid_check_runs():
     # Azure check run but no external_id
     check_runs = [
         CheckRun(
+            id=2,
             conclusion="failure",
             external_id=None,
             name="azure-check",

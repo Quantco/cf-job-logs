@@ -6,10 +6,10 @@ from dataclasses import dataclass
 
 import httpx
 
-from cf_job_logs.azure_devops_api import fetch_azure_steps
 from cf_job_logs.fetch_records import (
     FailedStepWithLog,
     fetch_all_logs_async,
+    fetch_ci_records,
     get_failed_steps_with_platform,
 )
 from cf_job_logs.github_api import (
@@ -17,7 +17,6 @@ from cf_job_logs.github_api import (
     fetch_github_check_runs,
     fetch_pr_details,
     fetch_recipe_file,
-    get_azure_build_info,
     parse_pr_url,
 )
 from cf_job_logs.models import CheckRun, GitHubContentFile
@@ -74,10 +73,9 @@ async def download_pr_async(
 
         logger.info("🔍 Fetching check runs...")
         check_runs = fetch_github_check_runs(http_client, pr_info, head_sha)
-        build_id, project_id = get_azure_build_info(check_runs)
 
-        logger.info("🏷️ Fetching Azure timeline...")
-        all_records = fetch_azure_steps(http_client, project_id, build_id)
+        logger.info("🏷️ Fetching CI records...")
+        all_records = fetch_ci_records(http_client, check_runs, pr_info)
 
         logger.info("🔍 Extracting failed steps...")
         failed_steps = get_failed_steps_with_platform(all_records)
