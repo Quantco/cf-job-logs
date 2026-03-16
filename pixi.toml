@@ -31,6 +31,7 @@ pytest-cov = "*"
 pytest-asyncio = ">=1.3.0,<2"
 pytest-vcr = "*"
 mypy = "*"
+typing_extensions = "*"
 [feature.test.tasks]
 test = "pytest"
 test-coverage = "pytest --cov=cf_job_logs --cov-report=xml --cov-report=term-missing"
