@@ -1,17 +1,17 @@
 [build-system]
-requires = ["setuptools", "setuptools-scm", "wheel"]
-
-[tool.setuptools_scm]
-version_scheme = "post-release"
+requires = ["hatchling"]
+build-backend = "hatchling.build"
 
 [project]
 name = "cf-job-logs"
 description = "A utility for fetching and structuring conda-forge Azure CI logs into clean, agent-readable artifacts."
 authors = [{ name = "ManuelLerchnerQC", email = "manuel.lerchner@quantco.com" }]
-dynamic = ["version"]
+# replaced in CI
+version = "0.0.0"
 classifiers = [
   "Programming Language :: Python :: 3",
   "Programming Language :: Python :: 3.13",
+  "Programming Language :: Python :: 3.14",
 ]
 requires-python = ">=3.13"
 readme = "README.md"
