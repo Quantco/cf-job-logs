@@ -77,18 +77,26 @@ def wait_for_check_runs(
             )
             if consecutive_errors >= max_consecutive_errors:
                 raise
+            if timeout is not None and (time.monotonic() - start) >= timeout:
+                return WaitResult(check_runs=[], timed_out=True)
             time.sleep(interval)
             continue
 
         relevant = [cr for cr in raw_runs if cr.ci_provider in _KNOWN_CI_PROVIDERS]
         summaries = [_summarize(cr) for cr in relevant]
 
-        status_key = "|".join(f"{s.name}:{s.status}:{s.conclusion}" for s in summaries)
+        status_key = "|".join(
+            f"{s.name}:{s.status}:{s.conclusion}"
+            for s in sorted(summaries, key=lambda s: s.name)
+        )
         if on_status_change and status_key != prev_status_key:
             on_status_change(summaries)
         prev_status_key = status_key
 
-        if relevant and all(cr.is_completed for cr in relevant):
+        if not relevant:
+            return WaitResult(check_runs=[], timed_out=False)
+
+        if all(cr.is_completed for cr in relevant):
             return WaitResult(check_runs=summaries, timed_out=False)
 
         if timeout is not None and (time.monotonic() - start) >= timeout:
