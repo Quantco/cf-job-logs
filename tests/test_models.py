@@ -75,6 +75,7 @@ def test_check_run_build_info():
     """Test CheckRun model can be instantiated with a conclusion."""
     check_run = CheckRun(
         id=1,
+        status="completed",
         conclusion="failure",
         external_id="12345|67890|abc-def-ghi",
         name="Test Check",
@@ -104,6 +105,7 @@ def test_github_actions_record_from_check_run():
     """Test GitHubActionsRecord can be created from a CheckRun."""
     check_run = CheckRun(
         id=12345,
+        status="completed",
         conclusion="failure",
         external_id="",
         name="Build linux-64",

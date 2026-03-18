@@ -227,6 +227,7 @@ def test_fetch_ci_records_converts_github_check_runs_directly():
     check_runs = [
         CheckRun(
             id=12345,
+            status="completed",
             conclusion="failure",
             external_id=None,
             name="Build linux-64",
@@ -235,6 +236,7 @@ def test_fetch_ci_records_converts_github_check_runs_directly():
         ),
         CheckRun(
             id=67890,
+            status="completed",
             conclusion="success",
             external_id=None,
             name="Build osx-64",
@@ -266,6 +268,7 @@ def test_fetch_ci_records_returns_only_github_when_azure_raises_no_completed_che
     check_runs = [
         CheckRun(
             id=1,
+            status="completed",
             conclusion="failure",
             external_id=None,
             name="Azure build",
@@ -290,6 +293,7 @@ def test_fetch_ci_records_returns_github_when_azure_logs_unavailable(caplog):
     check_runs = [
         CheckRun(
             id=1,
+            status="completed",
             conclusion="failure",
             external_id=None,
             name="Azure build",
@@ -298,6 +302,7 @@ def test_fetch_ci_records_returns_github_when_azure_logs_unavailable(caplog):
         ),
         CheckRun(
             id=12345,
+            status="completed",
             conclusion="failure",
             external_id=None,
             name="Build linux-64",
@@ -332,6 +337,7 @@ def test_fetch_ci_records_skips_github_check_runs_without_conclusion():
     check_runs = [
         CheckRun(
             id=12345,
+            status="completed",
             conclusion=None,
             external_id=None,
             name="Build linux-64",
@@ -340,6 +346,7 @@ def test_fetch_ci_records_skips_github_check_runs_without_conclusion():
         ),
         CheckRun(
             id=67890,
+            status="completed",
             conclusion="failure",
             external_id=None,
             name="Build osx-64",

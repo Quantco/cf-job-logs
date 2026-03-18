@@ -17,6 +17,7 @@ from cf_job_logs.github_api import (
     parse_pr_url,
 )
 from cf_job_logs.models import CIProvider, CIRecord, CIResult
+from cf_job_logs.polling import format_summary_table, wait_for_check_runs
 from cf_job_logs.sanitize import sanitize_log_text
 
 logger = logging.getLogger(__name__)
@@ -159,6 +160,76 @@ def download_log(pr_url: str, job_id: str, no_sanitize: bool) -> None:
     if not no_sanitize:
         log_text = sanitize_log_text(log_text)
     print(log_text)
+
+
+@cli.command("wait-for-ci")
+@click.argument("pr_url")
+@click.option(
+    "--interval",
+    default=30.0,
+    type=float,
+    help="Polling interval in seconds.",
+)
+@click.option(
+    "--timeout",
+    default=None,
+    type=float,
+    help="Maximum seconds to wait (no limit by default).",
+)
+@click.option(
+    "--json",
+    "output_json",
+    is_flag=True,
+    help="Output in JSON format.",
+)
+def wait_for_ci(
+    pr_url: str, interval: float, timeout: float | None, output_json: bool
+) -> None:
+    """Wait for all CI checks to complete on a PR, then report results."""
+    with httpx.Client(timeout=HTTP_TIMEOUT) as client:
+        pr_info = parse_pr_url(pr_url)
+        pr_details = fetch_pr_details(client, pr_info)
+        head_sha = pr_details.head.sha
+
+        def _progress(sums: list) -> None:
+            done = sum(1 for s in sums if s.status == "completed")
+            print(
+                f"[wait-for-ci] {done}/{len(sums)} check runs completed",
+                file=sys.stderr,
+            )
+
+        result = wait_for_check_runs(
+            http_client=client,
+            pr_info=pr_info,
+            head_sha=head_sha,
+            interval=interval,
+            timeout=timeout,
+            on_status_change=_progress,
+        )
+
+    if output_json:
+        data = {
+            "timed_out": result.timed_out,
+            "all_passed": result.all_passed,
+            "check_runs": [
+                {
+                    "name": cr.name,
+                    "status": cr.status,
+                    "conclusion": cr.conclusion,
+                    "ci_provider": cr.ci_provider,
+                    "html_url": cr.html_url,
+                }
+                for cr in result.check_runs
+            ],
+        }
+        print(json.dumps(data, indent=2))
+    else:
+        print(format_summary_table(result.check_runs))
+        if result.timed_out:
+            print("\nTimed out waiting for CI to complete.", file=sys.stderr)
+
+    if not result.all_passed:
+        sys.exit(1)
 
 
 if __name__ == "__main__":

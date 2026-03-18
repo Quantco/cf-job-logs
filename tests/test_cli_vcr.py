@@ -3,6 +3,7 @@
 
 """Integration tests for the CLI using pytest-vcr to record/replay HTTP interactions."""
 
+import json
 import re
 
 import pytest
@@ -129,3 +130,30 @@ def test_full_workflow(pr_url: str, expected_error: str):
         assert len(raw_output) > 0, "Expected raw log output"
         # Raw logs should have timestamps
         assert TIMESTAMP_PATTERN.search(raw_output), "Raw log should contain timestamps"
+
+
+@pytest.mark.vcr
+@pytest.mark.parametrize(
+    "pr_url",
+    [
+        pytest.param(
+            "https://github.com/conda-forge/staged-recipes/pull/32631",
+            id="staged-recipes-pr32631",
+        ),
+    ],
+)
+def test_wait_for_ci(pr_url: str):
+    """Test wait-for-ci on a completed PR returns immediately with results."""
+    runner = CliRunner()
+
+    # set interval to 0.1s to speed up test, and --json for easier assertions
+    result = runner.invoke(cli, ["wait-for-ci", pr_url, "--json", "--interval", "0.1"])
+    assert result.exit_code == 0
+
+    # Strip stderr progress lines that CliRunner mixes into output
+    json_str = result.output[: result.output.rindex("}") + 1]
+    data = json.loads(json_str)
+
+    for cr in data["check_runs"]:
+        assert cr["status"] == "completed"
+        assert cr["conclusion"] is not None

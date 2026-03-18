@@ -134,10 +134,15 @@ class CheckRun(BaseModel):
 
     id: int
     external_id: str | None
+    status: str
     conclusion: str | None
     name: str
     html_url: str | None = None
     app: GithubApp
+
+    @property
+    def is_completed(self) -> bool:
+        return self.status == "completed"
 
     @property
     def build_info(self) -> tuple[str, str]:

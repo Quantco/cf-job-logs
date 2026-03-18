@@ -99,6 +99,7 @@ def test_fetch_github_check_runs(mock_httpx_client):
             "check_runs": [
                 {
                     "id": 1,
+                    "status": "in_progress",
                     "conclusion": None,
                     "external_id": "12345|11111|still-running-1",
                     "name": "linux_64",
@@ -106,6 +107,7 @@ def test_fetch_github_check_runs(mock_httpx_client):
                 },
                 {
                     "id": 2,
+                    "status": "completed",
                     "conclusion": "failure",
                     "external_id": "12345|67890|abc-def-ghi",
                     "name": "win_64",
@@ -113,6 +115,7 @@ def test_fetch_github_check_runs(mock_httpx_client):
                 },
                 {
                     "id": 3,
+                    "status": "completed",
                     "conclusion": "success",
                     "external_id": "other|99999|other-id",
                     "name": "other-check",
@@ -158,6 +161,7 @@ def test_get_azure_build_info_extracts_build_info():
     check_runs = [
         CheckRun(
             id=1,
+            status="completed",
             conclusion="success",
             external_id="other|11111|other-id",
             name="other-check",
@@ -165,6 +169,7 @@ def test_get_azure_build_info_extracts_build_info():
         ),
         CheckRun(
             id=2,
+            status="completed",
             conclusion="failure",
             external_id="12345|67890|abc-def-ghi",
             name="azure-check",
@@ -187,6 +192,7 @@ def test_get_azure_build_info_raises_when_no_valid_check_runs():
     check_runs = [
         CheckRun(
             id=1,
+            status="completed",
             conclusion="success",
             external_id="other|11111|other-id",
             name="other-check",
@@ -203,6 +209,7 @@ def test_get_azure_build_info_raises_when_no_valid_check_runs():
     check_runs = [
         CheckRun(
             id=2,
+            status="completed",
             conclusion="failure",
             external_id=None,
             name="azure-check",
@@ -252,7 +259,14 @@ def test_fetch_check_run_status_handles_http_error(mock_httpx_client):
     mock_client = mock_httpx_client(
         json_data={
             "check_runs": [
-                {"conclusion": "failure", "external_id": "12345|67890|abc-def-ghi"}
+                {
+                    "id": 1,
+                    "status": "completed",
+                    "conclusion": "failure",
+                    "external_id": "12345|67890|abc-def-ghi",
+                    "name": "check",
+                    "app": {"slug": "azure-pipelines"},
+                }
             ]
         },
         expected_url=expected_url,
