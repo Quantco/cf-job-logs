@@ -24,6 +24,10 @@ class CIResult(StrEnum):
     # Coerce unknown results to "unknown" instead of raising an error
     UNKNOWN = "unknown"
 
+    @property
+    def is_failure(self) -> bool:
+        return self in {CIResult.FAILED, CIResult.CANCELED, CIResult.UNKNOWN}
+
     @classmethod
     def _missing_(cls, value: object) -> CIResult | None:
         """Normalize provider-specific result strings.
@@ -135,7 +139,7 @@ class CheckRun(BaseModel):
     id: int
     external_id: str | None
     status: str
-    conclusion: str | None
+    conclusion: CIResult | None
     name: str
     html_url: str | None = None
     app: GithubApp

@@ -137,24 +137,26 @@ def test_full_workflow(pr_url: str, expected_error: str):
     "pr_url",
     [
         pytest.param(
-            "https://github.com/conda-forge/staged-recipes/pull/32631",
-            id="staged-recipes-pr32631",
+            "https://github.com/conda-forge/cf-autotick-bot-test-package-feedstock/pull/445",
+            id="cf-autotick-bot-test-package-feedstock-pr445",
         ),
     ],
 )
-def test_wait_for_ci(pr_url: str):
+def test_wait_for_ci_fail_fast(pr_url: str):
     """Test wait-for-ci on a completed PR returns immediately with results."""
     runner = CliRunner()
 
     # set interval to 0.1s to speed up test, and --json for easier assertions
     result = runner.invoke(cli, ["wait-for-ci", pr_url, "--json", "--interval", "0.1"])
-    assert result.exit_code == 0
+    assert result.exit_code == 1
 
     # Extract JSON object from output (CliRunner mixes stderr progress lines into output)
     json_start = result.output.index("{")
     json_end = result.output.rindex("}") + 1
     data = json.loads(result.output[json_start:json_end])
 
-    for cr in data["check_runs"]:
-        assert cr["status"] == "completed"
-        assert cr["conclusion"] is not None
+    assert any(cr["status"] == "in_progress" for cr in data["check_runs"])
+    assert any(cr["status"] == "completed" for cr in data["check_runs"])
+
+    assert any(cr["conclusion"] == "failed" for cr in data["check_runs"])
+    assert any(cr["conclusion"] == "succeeded" for cr in data["check_runs"])

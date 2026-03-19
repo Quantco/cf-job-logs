@@ -228,7 +228,7 @@ def test_fetch_ci_records_converts_github_check_runs_directly():
         CheckRun(
             id=12345,
             status="completed",
-            conclusion="failure",
+            conclusion=CIResult.FAILED,
             external_id=None,
             name="Build linux-64",
             html_url="https://github.com/conda-forge/feedstock/actions/runs/1/job/12345",
@@ -237,7 +237,7 @@ def test_fetch_ci_records_converts_github_check_runs_directly():
         CheckRun(
             id=67890,
             status="completed",
-            conclusion="success",
+            conclusion=CIResult.SUCCEEDED,
             external_id=None,
             name="Build osx-64",
             html_url="https://github.com/conda-forge/feedstock/actions/runs/1/job/67890",
@@ -269,7 +269,7 @@ def test_fetch_ci_records_returns_only_github_when_azure_raises_no_completed_che
         CheckRun(
             id=1,
             status="completed",
-            conclusion="failure",
+            conclusion=CIResult.FAILED,
             external_id=None,
             name="Azure build",
             html_url=None,
@@ -294,7 +294,7 @@ def test_fetch_ci_records_returns_github_when_azure_logs_unavailable(caplog):
         CheckRun(
             id=1,
             status="completed",
-            conclusion="failure",
+            conclusion=CIResult.FAILED,
             external_id=None,
             name="Azure build",
             html_url=None,
@@ -303,7 +303,7 @@ def test_fetch_ci_records_returns_github_when_azure_logs_unavailable(caplog):
         CheckRun(
             id=12345,
             status="completed",
-            conclusion="failure",
+            conclusion=CIResult.FAILED,
             external_id=None,
             name="Build linux-64",
             html_url="https://github.com/conda-forge/feedstock/actions/runs/1/job/12345",
@@ -347,7 +347,7 @@ def test_fetch_ci_records_skips_github_check_runs_without_conclusion():
         CheckRun(
             id=67890,
             status="completed",
-            conclusion="failure",
+            conclusion=CIResult.FAILED,
             external_id=None,
             name="Build osx-64",
             html_url=None,

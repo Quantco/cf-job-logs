@@ -21,7 +21,7 @@ from cf_job_logs.github_api import (
     parse_pr_url,
     try_fetch_github_file,
 )
-from cf_job_logs.models import PRBranch, PRRepo, PullRequestResponse
+from cf_job_logs.models import CIResult, PRBranch, PRRepo, PullRequestResponse
 
 requires_github_token = pytest.mark.skipif(
     not os.environ.get("GITHUB_TOKEN"),
@@ -131,7 +131,7 @@ def test_fetch_github_check_runs(mock_httpx_client):
     assert len(check_runs) == 3
     assert check_runs[0].conclusion is None
     assert check_runs[0].name == "linux_64"
-    assert check_runs[1].conclusion == "failure"
+    assert check_runs[1].conclusion == CIResult.FAILED
     assert check_runs[1].external_id == "12345|67890|abc-def-ghi"
     assert check_runs[2].app.slug == "github-actions"
     mock_client.get.assert_called_once()
@@ -162,7 +162,7 @@ def test_get_azure_build_info_extracts_build_info():
         CheckRun(
             id=1,
             status="completed",
-            conclusion="success",
+            conclusion=CIResult.SUCCEEDED,
             external_id="other|11111|other-id",
             name="other-check",
             app=GithubApp(slug="github-actions"),
@@ -170,7 +170,7 @@ def test_get_azure_build_info_extracts_build_info():
         CheckRun(
             id=2,
             status="completed",
-            conclusion="failure",
+            conclusion=CIResult.FAILED,
             external_id="12345|67890|abc-def-ghi",
             name="azure-check",
             app=GithubApp(slug="azure-pipelines"),
@@ -193,7 +193,7 @@ def test_get_azure_build_info_raises_when_no_valid_check_runs():
         CheckRun(
             id=1,
             status="completed",
-            conclusion="success",
+            conclusion=CIResult.SUCCEEDED,
             external_id="other|11111|other-id",
             name="other-check",
             app=GithubApp(slug="github-actions"),
@@ -210,7 +210,7 @@ def test_get_azure_build_info_raises_when_no_valid_check_runs():
         CheckRun(
             id=2,
             status="completed",
-            conclusion="failure",
+            conclusion=CIResult.FAILED,
             external_id=None,
             name="azure-check",
             app=GithubApp(slug="azure-pipelines"),

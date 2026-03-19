@@ -15,8 +15,6 @@ from cf_job_logs.models import CheckRun
 
 logger = logging.getLogger(__name__)
 
-_PASSING_CONCLUSIONS = {"success", "neutral", "skipped"}
-
 
 @dataclass
 class WaitResult:
@@ -26,7 +24,8 @@ class WaitResult:
     @property
     def all_passed(self) -> bool:
         return not self.timed_out and all(
-            cr.conclusion in _PASSING_CONCLUSIONS for cr in self.check_runs
+            cr.conclusion is not None and not cr.conclusion.is_failure
+            for cr in self.check_runs
         )
 
 
@@ -80,7 +79,7 @@ def wait_for_check_runs(
 
         all_completed = ci_check_runs and all(cr.is_completed for cr in ci_check_runs)
         any_failed = ci_check_runs and any(
-            cr.is_completed and cr.conclusion not in _PASSING_CONCLUSIONS
+            cr.is_completed and (cr.conclusion is None or cr.conclusion.is_failure)
             for cr in ci_check_runs
         )
 
@@ -107,10 +106,10 @@ def format_summary_table(check_runs: list[CheckRun]) -> str:
     for cr in check_runs:
         if cr.status != "completed":
             display = cr.status
-        elif cr.conclusion == "success":
-            display = "succeeded"
+        elif cr.conclusion is not None:
+            display = cr.conclusion.value
         else:
-            display = cr.conclusion or "unknown"
+            display = "unknown"
         lines.append(f"{cr.name:<{name_width}}   {display}")
 
     return "\n".join(lines)

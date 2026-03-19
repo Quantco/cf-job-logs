@@ -173,7 +173,7 @@ CHECK_RUN_PASSED = CheckRun(
     id=1,
     external_id=None,
     status="completed",
-    conclusion="success",
+    conclusion=CIResult.SUCCEEDED,
     name="linux_64",
     html_url="",
     app=GithubApp(slug="github-actions"),
@@ -182,7 +182,7 @@ CHECK_RUN_FAILED = CheckRun(
     id=2,
     external_id=None,
     status="completed",
-    conclusion="failure",
+    conclusion=CIResult.FAILED,
     name="osx_64",
     html_url="",
     app=GithubApp(slug="github-actions"),
@@ -223,7 +223,7 @@ def test_wait_for_ci_with_failure():
         result = runner.invoke(cli, ["wait-for-ci", PR_URL])
 
     assert result.exit_code == 1
-    assert "failure" in result.output
+    assert "failed" in result.output
 
 
 def test_wait_for_ci_timed_out():
@@ -257,9 +257,9 @@ def test_wait_for_ci_json_output():
     assert data["all_passed"] is False
     assert len(data["check_runs"]) == 2
     assert data["check_runs"][0]["name"] == "linux_64"
-    assert data["check_runs"][0]["conclusion"] == "success"
+    assert data["check_runs"][0]["conclusion"] == "succeeded"
     assert data["check_runs"][1]["name"] == "osx_64"
-    assert data["check_runs"][1]["conclusion"] == "failure"
+    assert data["check_runs"][1]["conclusion"] == "failed"
 
 
 def test_wait_for_ci_json_with_failure():

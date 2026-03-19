@@ -6,7 +6,7 @@ from unittest.mock import MagicMock, patch
 import httpx
 
 from cf_job_logs.github_api import PRInfo
-from cf_job_logs.models import CheckRun, GithubApp
+from cf_job_logs.models import CheckRun, CIResult, GithubApp
 from cf_job_logs.polling import (
     format_summary_table,
     wait_for_check_runs,
@@ -16,7 +16,7 @@ from cf_job_logs.polling import (
 def _make_check_run(
     name: str,
     status: str = "completed",
-    conclusion: str | None = "success",
+    conclusion: CIResult | None = CIResult.SUCCEEDED,
     app_slug: str = "github-actions",
     id: int = 1,
 ) -> CheckRun:
@@ -40,8 +40,8 @@ HEAD_SHA = "abc123"
 def test_wait_all_completed_immediately(mock_fetch, mock_sleep):
     """When all check runs are already completed, return immediately."""
     mock_fetch.return_value = [
-        _make_check_run("linux_64", conclusion="success"),
-        _make_check_run("osx_64", conclusion="failure"),
+        _make_check_run("linux_64", conclusion=CIResult.SUCCEEDED),
+        _make_check_run("osx_64", conclusion=CIResult.FAILED),
     ]
 
     client = MagicMock(spec=httpx.Client)
@@ -60,11 +60,11 @@ def test_wait_polls_until_complete(mock_fetch, mock_sleep):
     mock_fetch.side_effect = [
         [
             _make_check_run("linux_64", status="in_progress", conclusion=None),
-            _make_check_run("osx_64", conclusion="success"),
+            _make_check_run("osx_64", conclusion=CIResult.SUCCEEDED),
         ],
         [
-            _make_check_run("linux_64", conclusion="success"),
-            _make_check_run("osx_64", conclusion="success"),
+            _make_check_run("linux_64", conclusion=CIResult.SUCCEEDED),
+            _make_check_run("osx_64", conclusion=CIResult.SUCCEEDED),
         ],
     ]
 
@@ -82,7 +82,7 @@ def test_wait_polls_until_complete(mock_fetch, mock_sleep):
 def test_wait_fail_fast_returns_on_first_failure(mock_fetch, mock_sleep):
     """With fail_fast=True, returns as soon as any check run fails."""
     mock_fetch.return_value = [
-        _make_check_run("linux_64", conclusion="failure"),
+        _make_check_run("linux_64", conclusion=CIResult.FAILED),
         _make_check_run("osx_64", status="in_progress", conclusion=None),
     ]
 
@@ -101,12 +101,12 @@ def test_wait_no_fail_fast_waits_for_all(mock_fetch, mock_sleep):
     """With fail_fast=False, waits for all check runs even if one already failed."""
     mock_fetch.side_effect = [
         [
-            _make_check_run("linux_64", conclusion="failure"),
+            _make_check_run("linux_64", conclusion=CIResult.FAILED),
             _make_check_run("osx_64", status="in_progress", conclusion=None),
         ],
         [
-            _make_check_run("linux_64", conclusion="failure"),
-            _make_check_run("osx_64", conclusion="success"),
+            _make_check_run("linux_64", conclusion=CIResult.FAILED),
+            _make_check_run("osx_64", conclusion=CIResult.SUCCEEDED),
         ],
     ]
 
@@ -144,7 +144,7 @@ def test_wait_times_out(mock_fetch, mock_sleep, mock_monotonic):
 def test_wait_filters_unknown_providers(mock_fetch, mock_sleep):
     """Check runs from unknown CI providers are ignored."""
     mock_fetch.return_value = [
-        _make_check_run("linux_64", conclusion="success"),
+        _make_check_run("linux_64", conclusion=CIResult.SUCCEEDED),
         _make_check_run("codecov", app_slug="codecov"),
     ]
 
@@ -162,7 +162,7 @@ def test_wait_retries_on_transient_error(mock_fetch, mock_sleep):
     """Retries on transient errors up to the limit."""
     mock_fetch.side_effect = [
         RuntimeError("Connection error"),
-        [_make_check_run("linux_64", conclusion="success")],
+        [_make_check_run("linux_64", conclusion=CIResult.SUCCEEDED)],
     ]
 
     client = MagicMock(spec=httpx.Client)
@@ -198,7 +198,7 @@ def test_wait_calls_on_status_change(mock_fetch, mock_sleep):
     mock_fetch.side_effect = [
         [_make_check_run("linux_64", status="in_progress", conclusion=None)],
         [_make_check_run("linux_64", status="in_progress", conclusion=None)],
-        [_make_check_run("linux_64", conclusion="success")],
+        [_make_check_run("linux_64", conclusion=CIResult.SUCCEEDED)],
     ]
 
     callback = MagicMock()
@@ -216,9 +216,9 @@ def test_wait_calls_on_status_change(mock_fetch, mock_sleep):
 def test_wait_all_passed_with_skipped(mock_fetch, mock_sleep):
     """all_passed is True when conclusions are success, neutral, or skipped."""
     mock_fetch.return_value = [
-        _make_check_run("linux_64", conclusion="success"),
-        _make_check_run("osx_64", conclusion="skipped"),
-        _make_check_run("win_64", conclusion="neutral"),
+        _make_check_run("linux_64", conclusion=CIResult.SUCCEEDED),
+        _make_check_run("osx_64", conclusion=CIResult.SKIPPED),
+        _make_check_run("win_64", conclusion=CIResult.SUCCEEDED),
     ]
 
     client = MagicMock(spec=httpx.Client)
@@ -262,8 +262,8 @@ def test_wait_status_change_stable_with_different_order(mock_fetch, mock_sleep):
         ],
         # Third poll has actual status change
         [
-            _make_check_run("aaa", conclusion="success"),
-            _make_check_run("bbb", conclusion="success"),
+            _make_check_run("aaa", conclusion=CIResult.SUCCEEDED),
+            _make_check_run("bbb", conclusion=CIResult.SUCCEEDED),
         ],
     ]
 
@@ -283,8 +283,8 @@ def test_format_summary_table_empty():
 
 def test_format_summary_table():
     summaries = [
-        _make_check_run("linux_64", conclusion="success", id=101),
-        _make_check_run("osx_64", conclusion="failure", id=102),
+        _make_check_run("linux_64", conclusion=CIResult.SUCCEEDED, id=101),
+        _make_check_run("osx_64", conclusion=CIResult.FAILED, id=102),
         _make_check_run("win_64", status="in_progress", conclusion=None, id=103),
     ]
     table = format_summary_table(summaries)
@@ -293,5 +293,5 @@ def test_format_summary_table():
     assert "osx_64" in table
     assert "win_64" in table
     assert "succeeded" in table
-    assert "failure" in table
+    assert "failed" in table
     assert "in_progress" in table

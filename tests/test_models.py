@@ -76,7 +76,7 @@ def test_check_run_build_info():
     check_run = CheckRun(
         id=1,
         status="completed",
-        conclusion="failure",
+        conclusion=CIResult.FAILED,
         external_id="12345|67890|abc-def-ghi",
         name="Test Check",
         app=GithubApp(slug="test-app"),
@@ -106,7 +106,7 @@ def test_github_actions_record_from_check_run():
     check_run = CheckRun(
         id=12345,
         status="completed",
-        conclusion="failure",
+        conclusion=CIResult.FAILED,
         external_id="",
         name="Build linux-64",
         app=GithubApp(slug="github-actions"),
