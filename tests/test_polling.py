@@ -77,6 +77,50 @@ def test_wait_polls_until_complete(mock_fetch, mock_sleep):
     mock_sleep.assert_called_once_with(1.0)
 
 
+@patch("cf_job_logs.polling.time.sleep")
+@patch("cf_job_logs.polling.fetch_github_check_runs")
+def test_wait_fail_fast_returns_on_first_failure(mock_fetch, mock_sleep):
+    """With fail_fast=True, returns as soon as any check run fails."""
+    mock_fetch.return_value = [
+        _make_check_run("linux_64", conclusion="failure"),
+        _make_check_run("osx_64", status="in_progress", conclusion=None),
+    ]
+
+    client = MagicMock(spec=httpx.Client)
+    result = wait_for_check_runs(client, PR_INFO, HEAD_SHA, fail_fast=True)
+
+    assert not result.timed_out
+    assert not result.all_passed
+    assert len(result.check_runs) == 2
+    mock_sleep.assert_not_called()
+
+
+@patch("cf_job_logs.polling.time.sleep")
+@patch("cf_job_logs.polling.fetch_github_check_runs")
+def test_wait_no_fail_fast_waits_for_all(mock_fetch, mock_sleep):
+    """With fail_fast=False, waits for all check runs even if one already failed."""
+    mock_fetch.side_effect = [
+        [
+            _make_check_run("linux_64", conclusion="failure"),
+            _make_check_run("osx_64", status="in_progress", conclusion=None),
+        ],
+        [
+            _make_check_run("linux_64", conclusion="failure"),
+            _make_check_run("osx_64", conclusion="success"),
+        ],
+    ]
+
+    client = MagicMock(spec=httpx.Client)
+    result = wait_for_check_runs(
+        client, PR_INFO, HEAD_SHA, interval=1.0, fail_fast=False
+    )
+
+    assert not result.timed_out
+    assert not result.all_passed
+    assert mock_fetch.call_count == 2
+    mock_sleep.assert_called_once_with(1.0)
+
+
 @patch("cf_job_logs.polling.time.monotonic")
 @patch("cf_job_logs.polling.time.sleep")
 @patch("cf_job_logs.polling.fetch_github_check_runs")
@@ -183,22 +227,22 @@ def test_wait_all_passed_with_skipped(mock_fetch, mock_sleep):
     assert result.all_passed
 
 
+@patch("cf_job_logs.polling.time.monotonic")
 @patch("cf_job_logs.polling.time.sleep")
 @patch("cf_job_logs.polling.fetch_github_check_runs")
-def test_wait_no_relevant_check_runs_returns_immediately(mock_fetch, mock_sleep):
-    """Returns immediately with empty result when no relevant CI check runs exist."""
+def test_wait_no_relevant_check_runs_times_out(mock_fetch, mock_sleep, mock_monotonic):
+    """Times out when no relevant CI check runs are found."""
     mock_fetch.return_value = [
         _make_check_run("codecov", app_slug="codecov"),
         _make_check_run("other-bot", app_slug="some-other-app"),
     ]
+    mock_monotonic.side_effect = [0.0, 15.0]
 
     client = MagicMock(spec=httpx.Client)
-    result = wait_for_check_runs(client, PR_INFO, HEAD_SHA)
+    result = wait_for_check_runs(client, PR_INFO, HEAD_SHA, timeout=10.0)
 
-    assert not result.timed_out
+    assert result.timed_out
     assert result.check_runs == []
-    assert result.all_passed  # vacuously true
-    mock_sleep.assert_not_called()
 
 
 @patch("cf_job_logs.polling.time.sleep")
@@ -244,11 +288,10 @@ def test_format_summary_table():
         _make_check_run("win_64", status="in_progress", conclusion=None, id=103),
     ]
     table = format_summary_table(summaries)
-    assert "ID" in table
-    assert "101" in table
-    assert "102" in table
-    assert "103" in table
+    assert "Name" in table
     assert "linux_64" in table
+    assert "osx_64" in table
+    assert "win_64" in table
     assert "succeeded" in table
     assert "failure" in table
     assert "in_progress" in table

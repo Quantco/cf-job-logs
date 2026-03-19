@@ -36,9 +36,14 @@ def wait_for_check_runs(
     head_sha: str,
     interval: float = 10.0,
     timeout: float | None = None,
+    fail_fast: bool = True,
     on_status_change: Callable[[list[CheckRun]], None] | None = None,
 ) -> WaitResult:
-    """Poll GitHub check runs until all relevant ones complete or timeout."""
+    """Poll GitHub check runs until all relevant ones complete or timeout.
+
+    If fail_fast is True, returns as soon as any completed check run has
+    a non-passing conclusion (i.e. not success/neutral/skipped).
+    """
     start = time.monotonic()
     consecutive_errors = 0
     max_consecutive_errors = 5
@@ -48,12 +53,13 @@ def wait_for_check_runs(
         try:
             raw_runs = fetch_github_check_runs(http_client, pr_info, head_sha)
             consecutive_errors = 0
-        except Exception:
+        except Exception as exc:
             consecutive_errors += 1
             logger.warning(
-                "Error fetching check runs (%d/%d)",
+                "Error fetching check runs (%d/%d): %s",
                 consecutive_errors,
                 max_consecutive_errors,
+                exc,
             )
             if consecutive_errors >= max_consecutive_errors:
                 raise
@@ -72,10 +78,13 @@ def wait_for_check_runs(
             on_status_change(ci_check_runs)
         prev_status_key = status_key
 
-        if not ci_check_runs:
-            return WaitResult(check_runs=[], timed_out=False)
+        all_completed = ci_check_runs and all(cr.is_completed for cr in ci_check_runs)
+        any_failed = ci_check_runs and any(
+            cr.is_completed and cr.conclusion not in _PASSING_CONCLUSIONS
+            for cr in ci_check_runs
+        )
 
-        if all(cr.is_completed for cr in ci_check_runs):
+        if all_completed or (fail_fast and any_failed):
             return WaitResult(check_runs=ci_check_runs, timed_out=False)
 
         if timeout is not None and (time.monotonic() - start) >= timeout:
@@ -84,24 +93,24 @@ def wait_for_check_runs(
         time.sleep(interval)
 
 
-def format_summary_table(summaries: list[CheckRun]) -> str:
-    """Format check run summaries as a human-readable table."""
-    if not summaries:
+def format_summary_table(check_runs: list[CheckRun]) -> str:
+    """Format check run results as a human-readable table."""
+    if not check_runs:
         return "No relevant CI check runs found."
 
-    id_width = max(len("ID"), max(len(str(s.id)) for s in summaries))
-    name_width = max(len("Name"), max(len(s.name) for s in summaries))
+    name_width = max(len("Name"), max(len(cr.name) for cr in check_runs))
+    header = f"{'Name':<{name_width}}   Result"
     lines = [
-        f"{'ID':<{id_width}}   {'Name':<{name_width}}   Result",
-        "\u2500" * (id_width + name_width + 21),
+        header,
+        "\u2500" * len(header),
     ]
-    for s in summaries:
-        if s.status != "completed":
-            display = s.status
-        elif s.conclusion == "success":
+    for cr in check_runs:
+        if cr.status != "completed":
+            display = cr.status
+        elif cr.conclusion == "success":
             display = "succeeded"
         else:
-            display = s.conclusion or "unknown"
-        lines.append(f"{s.id:<{id_width}}   {s.name:<{name_width}}   {display}")
+            display = cr.conclusion or "unknown"
+        lines.append(f"{cr.name:<{name_width}}   {display}")
 
     return "\n".join(lines)

@@ -16,7 +16,7 @@ from cf_job_logs.github_api import (
     get_github_headers,
     parse_pr_url,
 )
-from cf_job_logs.models import CIProvider, CIRecord, CIResult
+from cf_job_logs.models import CheckRun, CIProvider, CIRecord, CIResult
 from cf_job_logs.polling import format_summary_table, wait_for_check_runs
 from cf_job_logs.sanitize import sanitize_log_text
 
@@ -177,13 +177,22 @@ def download_log(pr_url: str, job_id: str, no_sanitize: bool) -> None:
     help="Maximum seconds to wait (no limit by default).",
 )
 @click.option(
+    "--fail-fast/--no-fail-fast",
+    default=True,
+    help="Stop as soon as any check fails (default: true).",
+)
+@click.option(
     "--json",
     "output_json",
     is_flag=True,
     help="Output in JSON format.",
 )
 def wait_for_ci(
-    pr_url: str, interval: float, timeout: float | None, output_json: bool
+    pr_url: str,
+    interval: float,
+    timeout: float | None,
+    fail_fast: bool,
+    output_json: bool,
 ) -> None:
     """Wait for all CI checks to complete on a PR, then report results."""
     with httpx.Client(timeout=HTTP_TIMEOUT) as client:
@@ -191,7 +200,7 @@ def wait_for_ci(
         pr_details = fetch_pr_details(client, pr_info)
         head_sha = pr_details.head.sha
 
-        def _progress(sums: list) -> None:
+        def _progress(sums: list[CheckRun]) -> None:
             done = sum(1 for s in sums if s.status == "completed")
             print(
                 f"[wait-for-ci] {done}/{len(sums)} check runs completed",
@@ -204,6 +213,7 @@ def wait_for_ci(
             head_sha=head_sha,
             interval=interval,
             timeout=timeout,
+            fail_fast=fail_fast,
             on_status_change=_progress,
         )
 
@@ -213,12 +223,9 @@ def wait_for_ci(
             "all_passed": result.all_passed,
             "check_runs": [
                 {
-                    "id": cr.id,
                     "name": cr.name,
                     "status": cr.status,
                     "conclusion": cr.conclusion,
-                    "ci_provider": cr.ci_provider,
-                    "html_url": cr.html_url,
                 }
                 for cr in result.check_runs
             ],

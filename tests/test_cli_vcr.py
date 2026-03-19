@@ -150,9 +150,10 @@ def test_wait_for_ci(pr_url: str):
     result = runner.invoke(cli, ["wait-for-ci", pr_url, "--json", "--interval", "0.1"])
     assert result.exit_code == 0
 
-    # Strip stderr progress lines that CliRunner mixes into output
-    json_str = result.output[: result.output.rindex("}") + 1]
-    data = json.loads(json_str)
+    # Extract JSON object from output (CliRunner mixes stderr progress lines into output)
+    json_start = result.output.index("{")
+    json_end = result.output.rindex("}") + 1
+    data = json.loads(result.output[json_start:json_end])
 
     for cr in data["check_runs"]:
         assert cr["status"] == "completed"
