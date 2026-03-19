@@ -213,6 +213,7 @@ def wait_for_ci(
             "all_passed": result.all_passed,
             "check_runs": [
                 {
+                    "id": cr.id,
                     "name": cr.name,
                     "status": cr.status,
                     "conclusion": cr.conclusion,

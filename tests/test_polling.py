@@ -8,7 +8,6 @@ import httpx
 from cf_job_logs.github_api import PRInfo
 from cf_job_logs.models import CheckRun, GithubApp
 from cf_job_logs.polling import (
-    CheckRunSummary,
     format_summary_table,
     wait_for_check_runs,
 )
@@ -19,9 +18,10 @@ def _make_check_run(
     status: str = "completed",
     conclusion: str | None = "success",
     app_slug: str = "github-actions",
+    id: int = 1,
 ) -> CheckRun:
     return CheckRun(
-        id=1,
+        id=id,
         external_id=None,
         status=status,
         conclusion=conclusion,
@@ -239,11 +239,15 @@ def test_format_summary_table_empty():
 
 def test_format_summary_table():
     summaries = [
-        CheckRunSummary("linux_64", "completed", "success", None, None),
-        CheckRunSummary("osx_64", "completed", "failure", None, None),
-        CheckRunSummary("win_64", "in_progress", None, None, None),
+        _make_check_run("linux_64", conclusion="success", id=101),
+        _make_check_run("osx_64", conclusion="failure", id=102),
+        _make_check_run("win_64", status="in_progress", conclusion=None, id=103),
     ]
     table = format_summary_table(summaries)
+    assert "ID" in table
+    assert "101" in table
+    assert "102" in table
+    assert "103" in table
     assert "linux_64" in table
     assert "succeeded" in table
     assert "failure" in table
