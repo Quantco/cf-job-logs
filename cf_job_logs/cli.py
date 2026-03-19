@@ -167,7 +167,7 @@ def download_log(pr_url: str, job_id: str, no_sanitize: bool) -> None:
 @click.option(
     "--interval",
     default=30.0,
-    type=float,
+    type=click.FloatRange(min=0.0, min_open=True),
     help="Polling interval in seconds.",
 )
 @click.option(
@@ -200,10 +200,10 @@ def wait_for_ci(
         pr_details = fetch_pr_details(client, pr_info)
         head_sha = pr_details.head.sha
 
-        def _progress(sums: list[CheckRun]) -> None:
-            done = sum(1 for s in sums if s.status == "completed")
+        def _progress(check_runs: list[CheckRun]) -> None:
+            done = sum(1 for s in check_runs if s.status == "completed")
             print(
-                f"[wait-for-ci] {done}/{len(sums)} check runs completed",
+                f"[wait-for-ci] {done}/{len(check_runs)} check runs completed",
                 file=sys.stderr,
             )
 
