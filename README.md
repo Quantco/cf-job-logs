@@ -5,7 +5,7 @@
 [![pypi-version](https://img.shields.io/pypi/v/cf-job-logs.svg?logo=pypi&logoColor=white&style=flat-square)](https://pypi.org/project/cf-job-logs)
 [![python-version](https://img.shields.io/pypi/pyversions/cf-job-logs?logoColor=white&logo=python&style=flat-square)](https://pypi.org/project/cf-job-logs)
 
-A utility for fetching and structuring conda-forge Azure CI logs into clean, agent-readable artifacts.
+A utility for fetching and structuring conda-forge CI logs (Azure Pipelines and GitHub Actions) into clean, agent-readable artifacts.
 
 ## Installation
 
@@ -23,7 +23,7 @@ pixi run test
 
 ## CLI Usage
 
-The `cf-job-logs` CLI provides commands to inspect Azure CI jobs for a conda-forge PR.
+The `cf-job-logs` CLI provides commands to inspect CI jobs for a conda-forge PR.
 
 ### List jobs
 
@@ -57,6 +57,48 @@ Output goes to stdout, so you can redirect it to a file:
 
 ```bash
 cf-job-logs download-log <pr_url> <job_id> > build.log
+```
+
+### Wait for CI
+
+Wait for all CI checks to complete on a PR, then report which passed or failed:
+
+```bash
+cf-job-logs wait-for-ci https://github.com/conda-forge/some-feedstock/pull/123
+```
+
+Customize the polling interval and timeout:
+
+```bash
+cf-job-logs wait-for-ci --interval 60 --timeout 3600 <pr_url>
+```
+
+By default, `--fail-fast` is enabled: the command returns as soon as any check fails without waiting for the rest. Use `--no-fail-fast` to wait for all checks to complete.
+
+The command exits with code 0 if all checks pass, or 1 if any check fails or the timeout is reached.
+
+**Note:** `wait-for-ci` reports check-run level results (name + pass/fail). To get job IDs for `download-log`, use `list-jobs` after `wait-for-ci` completes.
+
+### Recommended agent workflow
+
+```bash
+# 1. Wait for CI to finish
+cf-job-logs wait-for-ci --json <pr_url>
+
+# 2. If something failed, get the job IDs
+cf-job-logs list-jobs --json <pr_url>
+
+# 3. Download the log for a specific failed job
+cf-job-logs download-log <pr_url> <job_id>
+```
+
+### JSON output
+
+All commands that produce tabular output support `--json` for machine-readable output:
+
+```bash
+cf-job-logs list-jobs --json <pr_url>
+cf-job-logs wait-for-ci --json <pr_url>
 ```
 
 ### Verbose mode

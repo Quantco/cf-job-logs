@@ -21,7 +21,7 @@ from cf_job_logs.github_api import (
     parse_pr_url,
     try_fetch_github_file,
 )
-from cf_job_logs.models import PRBranch, PRRepo, PullRequestResponse
+from cf_job_logs.models import CIResult, PRBranch, PRRepo, PullRequestResponse
 
 requires_github_token = pytest.mark.skipif(
     not os.environ.get("GITHUB_TOKEN"),
@@ -99,6 +99,7 @@ def test_fetch_github_check_runs(mock_httpx_client):
             "check_runs": [
                 {
                     "id": 1,
+                    "status": "in_progress",
                     "conclusion": None,
                     "external_id": "12345|11111|still-running-1",
                     "name": "linux_64",
@@ -106,6 +107,7 @@ def test_fetch_github_check_runs(mock_httpx_client):
                 },
                 {
                     "id": 2,
+                    "status": "completed",
                     "conclusion": "failure",
                     "external_id": "12345|67890|abc-def-ghi",
                     "name": "win_64",
@@ -113,6 +115,7 @@ def test_fetch_github_check_runs(mock_httpx_client):
                 },
                 {
                     "id": 3,
+                    "status": "completed",
                     "conclusion": "success",
                     "external_id": "other|99999|other-id",
                     "name": "other-check",
@@ -128,7 +131,7 @@ def test_fetch_github_check_runs(mock_httpx_client):
     assert len(check_runs) == 3
     assert check_runs[0].conclusion is None
     assert check_runs[0].name == "linux_64"
-    assert check_runs[1].conclusion == "failure"
+    assert check_runs[1].conclusion == CIResult.FAILED
     assert check_runs[1].external_id == "12345|67890|abc-def-ghi"
     assert check_runs[2].app.slug == "github-actions"
     mock_client.get.assert_called_once()
@@ -158,14 +161,16 @@ def test_get_azure_build_info_extracts_build_info():
     check_runs = [
         CheckRun(
             id=1,
-            conclusion="success",
+            status="completed",
+            conclusion=CIResult.SUCCEEDED,
             external_id="other|11111|other-id",
             name="other-check",
             app=GithubApp(slug="github-actions"),
         ),
         CheckRun(
             id=2,
-            conclusion="failure",
+            status="completed",
+            conclusion=CIResult.FAILED,
             external_id="12345|67890|abc-def-ghi",
             name="azure-check",
             app=GithubApp(slug="azure-pipelines"),
@@ -187,7 +192,8 @@ def test_get_azure_build_info_raises_when_no_valid_check_runs():
     check_runs = [
         CheckRun(
             id=1,
-            conclusion="success",
+            status="completed",
+            conclusion=CIResult.SUCCEEDED,
             external_id="other|11111|other-id",
             name="other-check",
             app=GithubApp(slug="github-actions"),
@@ -203,7 +209,8 @@ def test_get_azure_build_info_raises_when_no_valid_check_runs():
     check_runs = [
         CheckRun(
             id=2,
-            conclusion="failure",
+            status="completed",
+            conclusion=CIResult.FAILED,
             external_id=None,
             name="azure-check",
             app=GithubApp(slug="azure-pipelines"),
@@ -252,7 +259,14 @@ def test_fetch_check_run_status_handles_http_error(mock_httpx_client):
     mock_client = mock_httpx_client(
         json_data={
             "check_runs": [
-                {"conclusion": "failure", "external_id": "12345|67890|abc-def-ghi"}
+                {
+                    "id": 1,
+                    "status": "completed",
+                    "conclusion": "failure",
+                    "external_id": "12345|67890|abc-def-ghi",
+                    "name": "check",
+                    "app": {"slug": "azure-pipelines"},
+                }
             ]
         },
         expected_url=expected_url,

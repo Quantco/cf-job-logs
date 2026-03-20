@@ -3,6 +3,7 @@
 
 """Integration tests for the CLI using pytest-vcr to record/replay HTTP interactions."""
 
+import json
 import re
 
 import pytest
@@ -129,3 +130,33 @@ def test_full_workflow(pr_url: str, expected_error: str):
         assert len(raw_output) > 0, "Expected raw log output"
         # Raw logs should have timestamps
         assert TIMESTAMP_PATTERN.search(raw_output), "Raw log should contain timestamps"
+
+
+@pytest.mark.vcr
+@pytest.mark.parametrize(
+    "pr_url",
+    [
+        pytest.param(
+            "https://github.com/conda-forge/cf-autotick-bot-test-package-feedstock/pull/445",
+            id="cf-autotick-bot-test-package-feedstock-pr445",
+        ),
+    ],
+)
+def test_wait_for_ci_fail_fast(pr_url: str):
+    """Test wait-for-ci on a completed PR returns immediately with results."""
+    runner = CliRunner()
+
+    # set interval to 0.1s to speed up test, and --json for easier assertions
+    result = runner.invoke(cli, ["wait-for-ci", pr_url, "--json", "--interval", "0.1"])
+    assert result.exit_code == 1
+
+    # Extract JSON object from output (CliRunner mixes stderr progress lines into output)
+    json_start = result.output.index("{")
+    json_end = result.output.rindex("}") + 1
+    data = json.loads(result.output[json_start:json_end])
+
+    assert any(cr["status"] == "in_progress" for cr in data["check_runs"])
+    assert any(cr["status"] == "completed" for cr in data["check_runs"])
+
+    assert any(cr["conclusion"] == "failed" for cr in data["check_runs"])
+    assert any(cr["conclusion"] == "succeeded" for cr in data["check_runs"])

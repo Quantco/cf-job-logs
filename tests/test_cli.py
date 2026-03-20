@@ -4,12 +4,24 @@
 """Unit tests for CLI error cases that are hard to test with VCR."""
 
 import json
+from contextlib import contextmanager
 from unittest.mock import patch
 
 from click.testing import CliRunner
 
 from cf_job_logs.cli import cli
-from cf_job_logs.models import CIResult, GitHubActionsRecord, LogInfo, TimelineRecord
+from cf_job_logs.models import (
+    CheckRun,
+    CIResult,
+    GitHubActionsRecord,
+    GithubApp,
+    LogInfo,
+    PRBranch,
+    PRRepo,
+    PullRequestResponse,
+    TimelineRecord,
+)
+from cf_job_logs.polling import WaitResult
 
 SAMPLE_RECORDS = [
     TimelineRecord(
@@ -155,3 +167,106 @@ def test_no_command_exits():
     assert result.exit_code == 0
     assert "Usage:" in result.output
     assert "Commands:" in result.output
+
+
+CHECK_RUN_PASSED = CheckRun(
+    id=1,
+    external_id=None,
+    status="completed",
+    conclusion=CIResult.SUCCEEDED,
+    name="linux_64",
+    html_url="",
+    app=GithubApp(slug="github-actions"),
+)
+CHECK_RUN_FAILED = CheckRun(
+    id=2,
+    external_id=None,
+    status="completed",
+    conclusion=CIResult.FAILED,
+    name="osx_64",
+    html_url="",
+    app=GithubApp(slug="github-actions"),
+)
+
+
+@contextmanager
+def _patch_wait(check_runs: list[CheckRun], timed_out: bool = False):
+    mock_pr = PullRequestResponse(
+        head=PRBranch(
+            sha="abc123", ref="feature", repo=PRRepo(full_name="conda-forge/test")
+        ),
+        base=PRBranch(
+            sha="def456", ref="main", repo=PRRepo(full_name="conda-forge/test")
+        ),
+    )
+    wait_result = WaitResult(check_runs=check_runs, timed_out=timed_out)
+    with (
+        patch("cf_job_logs.cli.fetch_pr_details", return_value=mock_pr),
+        patch("cf_job_logs.cli.wait_for_check_runs", return_value=wait_result),
+    ):
+        yield
+
+
+def test_wait_for_ci_all_passed():
+    runner = CliRunner()
+    with _patch_wait([CHECK_RUN_PASSED]):
+        result = runner.invoke(cli, ["wait-for-ci", PR_URL])
+
+    assert result.exit_code == 0
+    assert "linux_64" in result.output
+    assert "succeeded" in result.output
+
+
+def test_wait_for_ci_with_failure():
+    runner = CliRunner()
+    with _patch_wait([CHECK_RUN_PASSED, CHECK_RUN_FAILED]):
+        result = runner.invoke(cli, ["wait-for-ci", PR_URL])
+
+    assert result.exit_code == 1
+    assert "failed" in result.output
+
+
+def test_wait_for_ci_timed_out():
+    runner = CliRunner()
+    with _patch_wait(
+        [
+            CheckRun(
+                id=3,
+                external_id=None,
+                status="in_progress",
+                conclusion=None,
+                name="linux_64",
+                html_url="",
+                app=GithubApp(slug="github-actions"),
+            )
+        ],
+        timed_out=True,
+    ):
+        result = runner.invoke(cli, ["wait-for-ci", PR_URL])
+
+    assert result.exit_code == 1
+
+
+def test_wait_for_ci_json_output():
+    runner = CliRunner()
+    with _patch_wait([CHECK_RUN_PASSED, CHECK_RUN_FAILED]):
+        result = runner.invoke(cli, ["wait-for-ci", PR_URL, "--json"])
+
+    data = json.loads(result.output)
+    assert data["timed_out"] is False
+    assert data["all_passed"] is False
+    assert len(data["check_runs"]) == 2
+    assert data["check_runs"][0]["name"] == "linux_64"
+    assert data["check_runs"][0]["conclusion"] == "succeeded"
+    assert data["check_runs"][1]["name"] == "osx_64"
+    assert data["check_runs"][1]["conclusion"] == "failed"
+
+
+def test_wait_for_ci_json_with_failure():
+    runner = CliRunner()
+    with _patch_wait([CHECK_RUN_PASSED, CHECK_RUN_FAILED]):
+        result = runner.invoke(cli, ["wait-for-ci", PR_URL, "--json"])
+
+    assert result.exit_code == 1
+    data = json.loads(result.output)
+    assert data["all_passed"] is False
