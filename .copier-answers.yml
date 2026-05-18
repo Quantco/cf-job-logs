@@ -17,6 +17,6 @@ github_url: https://github.com/Quantco/cf-job-logs
 github_user: ManuelLerchnerQC
 minimal_python_version: py313
 project_short_description: A utility for fetching and structuring conda-forge Azure
-    CI logs into clean, agent-readable artifacts.
+  CI logs into clean, agent-readable artifacts.
 project_slug: cf-job-logs
 use_devcontainer: false
