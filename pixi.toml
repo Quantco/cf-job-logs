@@ -16,6 +16,7 @@ version = "*"
 [package.host-dependencies]
 python = ">=3.13"
 hatchling = "*"
+uv = "*"
 
 [package.run-dependencies]
 python = ">=3.13"
