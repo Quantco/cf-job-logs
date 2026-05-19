@@ -17,7 +17,6 @@ git clone https://github.com/Quantco/cf-job-logs
 cd cf-job-logs
 
 pixi run pre-commit-install
-pixi run postinstall
 pixi run test
 ```
 
