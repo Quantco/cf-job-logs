@@ -19,6 +19,7 @@ from cf_job_logs.github_api import (
     fetch_recipe_file,
     get_azure_build_info,
     parse_pr_url,
+    rate_limit_hint,
     try_fetch_github_file,
 )
 from cf_job_logs.models import CIResult, PRBranch, PRRepo, PullRequestResponse
@@ -248,6 +249,53 @@ def test_fetch_pr_details_handles_http_error(mock_httpx_client):
     with pytest.raises(RuntimeError):
         fetch_pr_details(mock_client, pr_info)
     mock_client.get.assert_called_once()
+
+
+def _rate_limited_error(remaining: str = "0", status_code: int = 403):
+    """Build the HTTPStatusError GitHub raises once the rate limit is exhausted."""
+    request = httpx.Request("GET", "https://api.github.com/rate_limit")
+    response = httpx.Response(
+        status_code,
+        headers={"x-ratelimit-remaining": remaining},
+        request=request,
+    )
+    return httpx.HTTPStatusError("rate limited", request=request, response=response)
+
+
+@pytest.mark.parametrize("status_code", [403, 429])
+def test_rate_limit_hint_suggests_authenticating(status_code):
+    """An unauthenticated rate limit error points the user at `gh auth login`."""
+    error = _rate_limited_error(status_code=status_code)
+
+    with patch("cf_job_logs.github_api.resolve_github_token", return_value=None):
+        hint = rate_limit_hint(error)
+
+    assert "gh auth login" in hint
+    assert "GITHUB_TOKEN" in hint
+
+
+def test_rate_limit_hint_when_authenticated():
+    """If a token is already in use, the hint says to wait instead."""
+    with patch("cf_job_logs.github_api.resolve_github_token", return_value="token"):
+        hint = rate_limit_hint(_rate_limited_error())
+
+    assert "gh auth login" not in hint
+    assert "resets" in hint
+
+
+@pytest.mark.parametrize(
+    "error",
+    [
+        httpx.HTTPError("connection error"),
+        _rate_limited_error(remaining="42"),
+        _rate_limited_error(status_code=404),
+    ],
+    ids=["transport-error", "quota-left", "not-found"],
+)
+def test_rate_limit_hint_ignores_unrelated_errors(error):
+    """Errors that are not rate limits get no hint."""
+    with patch("cf_job_logs.github_api.resolve_github_token", return_value=None):
+        assert rate_limit_hint(error) == ""
 
 
 def test_fetch_check_run_status_handles_http_error(mock_httpx_client):
