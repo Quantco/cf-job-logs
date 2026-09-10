@@ -10,6 +10,11 @@ import click
 import httpx
 
 from cf_job_logs.fetch_records import fetch_ci_records
+from cf_job_logs.gh_auth import (
+    GhCliUnavailableError,
+    GitHubAuthMode,
+    configure_github_auth,
+)
 from cf_job_logs.github_api import (
     fetch_github_check_runs,
     fetch_pr_details,
@@ -58,8 +63,15 @@ def _fetch_raw_log(record: CIRecord) -> str:
 
 @click.group(invoke_without_command=True)
 @click.option("-v", "--verbose", is_flag=True, help="Enable verbose logging.")
+@click.option(
+    "--gh/--no-gh",
+    "use_gh",
+    default=None,
+    help="Authenticate GitHub API requests with the token of the `gh` CLI. "
+    "Enabled by default if `gh` is logged in; `GITHUB_TOKEN` takes precedence.",
+)
 @click.pass_context
-def cli(ctx: click.Context, verbose: bool) -> None:
+def cli(ctx: click.Context, verbose: bool, use_gh: bool | None) -> None:
     """Fetch and inspect conda-forge CI logs."""
     ctx.ensure_object(dict)
     ctx.obj["verbose"] = verbose
@@ -68,6 +80,19 @@ def cli(ctx: click.Context, verbose: bool) -> None:
         level=logging.DEBUG if verbose else logging.WARNING,
         format="%(message)s",
     )
+
+    match use_gh:
+        case None:
+            auth_mode = GitHubAuthMode.AUTO
+        case True:
+            auth_mode = GitHubAuthMode.GH
+        case False:
+            auth_mode = GitHubAuthMode.ENV
+
+    try:
+        configure_github_auth(auth_mode)
+    except GhCliUnavailableError as e:
+        raise click.ClickException(str(e)) from e
 
     # Show help if no subcommand is provided
     if ctx.invoked_subcommand is None:

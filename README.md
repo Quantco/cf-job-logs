@@ -24,6 +24,25 @@ pixi run test
 
 The `cf-job-logs` CLI provides commands to inspect CI jobs for a conda-forge PR.
 
+### Authentication
+
+Unauthenticated GitHub API requests are limited to 60 per hour, which a single PR
+inspection can exhaust, and GitHub Actions job logs require authentication altogether.
+By default, the token is therefore resolved in this order:
+
+1. the `GITHUB_TOKEN` environment variable,
+2. the token of a logged-in [`gh` CLI](https://cli.github.com) (`gh auth token`),
+3. no token — requests are sent unauthenticated.
+
+So running `gh auth login` once is enough to stay clear of the rate limit. Use `--gh`
+to require the `gh` CLI token (the command fails if `gh` is missing or logged out), or
+`--no-gh` to never invoke `gh` and only use `GITHUB_TOKEN`:
+
+```bash
+cf-job-logs --gh list-jobs <pr_url>
+cf-job-logs --no-gh list-jobs <pr_url>
+```
+
 ### List jobs
 
 List failed jobs (default) for a PR:

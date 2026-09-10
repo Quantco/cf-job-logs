@@ -12,6 +12,7 @@ from cf_job_logs.fetch_records import (
     fetch_ci_records,
     get_failed_steps_with_platform,
 )
+from cf_job_logs.gh_auth import GitHubAuthMode, configure_github_auth
 from cf_job_logs.github_api import (
     PRInfo,
     fetch_github_check_runs,
@@ -40,12 +41,15 @@ class DownloadResult:
 async def download_pr_async(
     pr_url: str,
     http_timeout: float = HTTP_TIMEOUT,
+    auth_mode: GitHubAuthMode | None = None,
 ) -> DownloadResult:
     """Download recipe and failed step logs from a conda-forge PR URL.
 
     Args:
         pr_url: The GitHub PR URL.
         http_timeout: Timeout for HTTP requests in seconds.
+        auth_mode: How to authenticate GitHub API requests. Keeps the currently
+            configured mode if None.
 
     Returns:
         DownloadResult containing recipe, failed steps, pr_info, and check runs.
@@ -55,8 +59,12 @@ async def download_pr_async(
         RecipeNotFoundError: If the recipe file is not found.
         NoCompletedCheckRunsError: If no completed check runs are found.
         BuildLogsUnavailableError: If build logs cannot be fetched.
+        GhCliUnavailableError: If auth_mode is GH but the `gh` CLI has no token.
         RuntimeError: For other HTTP/API errors.
     """
+
+    if auth_mode is not None:
+        configure_github_auth(auth_mode)
 
     with httpx.Client(timeout=http_timeout) as http_client:
         logger.info("🔗 Parsing PR URL...")

@@ -3,7 +3,6 @@
 
 
 import logging
-import os
 from collections.abc import Callable
 from dataclasses import dataclass
 from functools import wraps
@@ -12,6 +11,7 @@ from urllib.parse import urlparse
 
 import httpx
 
+from cf_job_logs.gh_auth import resolve_github_token
 from cf_job_logs.models import (
     CheckRun,
     CheckRunsResponse,
@@ -55,12 +55,39 @@ def get_github_headers() -> dict[str, str]:
     """Get headers for GitHub API requests with authentication if available.
 
     Returns:
-        Dictionary with headers including Authorization if GITHUB_TOKEN is set.
+        Dictionary with headers including Authorization if a token could be resolved.
     """
     headers = {"Accept": "application/vnd.github.v3+json"}
-    if github_token := os.getenv("GITHUB_TOKEN"):
+    if github_token := resolve_github_token():
         headers["Authorization"] = f"Bearer {github_token}"
     return headers
+
+
+def rate_limit_hint(error: httpx.HTTPError) -> str:
+    """Build an actionable hint if a request failed because of the rate limit.
+
+    Args:
+        error: The error raised by the failed request.
+
+    Returns:
+        A hint on how to authenticate, or an empty string for unrelated errors.
+    """
+    if not isinstance(error, httpx.HTTPStatusError):
+        return ""
+    if error.response.status_code not in (403, 429):
+        return ""
+    if error.response.headers.get("x-ratelimit-remaining") != "0":
+        return ""
+
+    if resolve_github_token():
+        return (
+            "\n\nThe GitHub API rate limit for your token is exhausted. "
+            "Please wait until it resets."
+        )
+    return (
+        "\n\nThis is the rate limit for unauthenticated requests (60 per hour). "
+        "Run `gh auth login` or set `GITHUB_TOKEN` to raise it."
+    )
 
 
 def paginate_github_api[T, **P](
@@ -159,7 +186,7 @@ def fetch_pr_details(http_client: httpx.Client, pr_info: PRInfo) -> PullRequestR
         response.raise_for_status()
         return PullRequestResponse.model_validate(response.json())
     except httpx.HTTPError as e:
-        raise RuntimeError(f"Error fetching PR details: {e}") from e
+        raise RuntimeError(f"Error fetching PR details: {e}{rate_limit_hint(e)}") from e
 
 
 @paginate_github_api
@@ -199,7 +226,7 @@ def fetch_github_check_runs(
         status_response.raise_for_status()
         return CheckRunsResponse.model_validate(status_response.json()).check_runs
     except httpx.HTTPError as e:
-        raise RuntimeError(f"Error fetching check runs: {e}") from e
+        raise RuntimeError(f"Error fetching check runs: {e}{rate_limit_hint(e)}") from e
 
 
 def get_azure_build_info(
@@ -285,7 +312,7 @@ def fetch_changed_files_in_pr(
         files = [PRFile.model_validate(f) for f in response.json()]
         return [f.filename for f in files]
     except httpx.HTTPError as e:
-        raise RuntimeError(f"Error fetching PR files: {e}") from e
+        raise RuntimeError(f"Error fetching PR files: {e}{rate_limit_hint(e)}") from e
 
 
 def fetch_recipe_file(

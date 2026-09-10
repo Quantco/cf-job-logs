@@ -8,6 +8,7 @@ from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
 
 import pytest
 
+from cf_job_logs.gh_auth import GitHubAuthMode, configure_github_auth
 from tests.fixtures.mock_httpx_async_client import mock_httpx_async_client
 from tests.fixtures.mock_httpx_client import mock_httpx_client
 
@@ -54,6 +55,19 @@ def _scrub_response(response):
         if k.lower() in ALLOWED_RESPONSE_HEADERS
     }
     return response
+
+
+@pytest.fixture(autouse=True)
+def no_gh_cli():
+    """Never shell out to `gh` in tests.
+
+    Otherwise results would depend on whether the machine running the suite happens
+    to have a logged-in `gh` CLI. `GITHUB_TOKEN` is still honored, so the tests
+    marked with `requires_github_token` keep working.
+    """
+    configure_github_auth(GitHubAuthMode.ENV)
+    yield
+    configure_github_auth(GitHubAuthMode.AUTO)
 
 
 @pytest.fixture(scope="module")
