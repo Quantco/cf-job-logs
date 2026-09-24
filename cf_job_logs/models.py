@@ -198,6 +198,12 @@ class PullRequestResponse(BaseModel):
     base: PRBranch
 
 
+class WorkflowRunResponse(BaseModel):
+    """Response from the GitHub Actions workflow run API."""
+
+    head_sha: str
+
+
 class PRFile(BaseModel):
     """A file changed in a GitHub PR."""
 

@@ -10,7 +10,7 @@ from dataclasses import dataclass
 
 import httpx
 
-from cf_job_logs.github_api import PRInfo, fetch_github_check_runs
+from cf_job_logs.github_api import RepoInfo, fetch_github_check_runs
 from cf_job_logs.models import CheckRun
 
 logger = logging.getLogger(__name__)
@@ -31,7 +31,7 @@ class WaitResult:
 
 def wait_for_check_runs(
     http_client: httpx.Client,
-    pr_info: PRInfo,
+    repo_info: RepoInfo,
     head_sha: str,
     interval: float = 10.0,
     timeout: float | None = None,
@@ -50,7 +50,7 @@ def wait_for_check_runs(
 
     while True:
         try:
-            raw_runs = fetch_github_check_runs(http_client, pr_info, head_sha)
+            raw_runs = fetch_github_check_runs(http_client, repo_info, head_sha)
             consecutive_errors = 0
         except Exception as exc:
             consecutive_errors += 1

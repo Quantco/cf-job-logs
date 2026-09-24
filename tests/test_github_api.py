@@ -10,16 +10,21 @@ import pytest
 from cf_job_logs.github_api import (
     GITHUB_PER_PAGE,
     InvalidPRURLError,
+    InvalidURLError,
     NoCompletedCheckRunsError,
     PRInfo,
     RecipeNotFoundError,
+    WorkflowRunInfo,
     fetch_changed_files_in_pr,
     fetch_github_check_runs,
     fetch_pr_details,
     fetch_recipe_file,
+    fetch_workflow_run,
     get_azure_build_info,
+    parse_ci_url,
     parse_pr_url,
     rate_limit_hint,
+    resolve_head_sha,
     try_fetch_github_file,
 )
 from cf_job_logs.models import CIResult, PRBranch, PRRepo, PullRequestResponse
@@ -54,6 +59,111 @@ def test_parse_pr_url_invalid_url():
     pr_url = "https://github.com/conda-forge/hpp-gui-feedstock"
     with pytest.raises(InvalidPRURLError):
         parse_pr_url(pr_url)
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        pytest.param(
+            "https://github.com/conda/rattler/actions/runs/34486305620", id="run"
+        ),
+        pytest.param(
+            "https://github.com/conda/rattler/actions/runs/34486305620/job/108227849161",
+            id="job",
+        ),
+        pytest.param(
+            "https://github.com/conda/rattler/actions/runs/34486305620/attempts/2",
+            id="attempt",
+        ),
+    ],
+)
+def test_parse_ci_url_workflow_run(url: str):
+    """Workflow run URLs are parsed into a WorkflowRunInfo."""
+    assert parse_ci_url(url) == WorkflowRunInfo(
+        owner="conda", repo="rattler", run_id=34486305620
+    )
+
+
+def test_parse_ci_url_pull_request():
+    """PR URLs are still parsed into a PRInfo."""
+    assert parse_ci_url("https://github.com/conda-forge/feedstocks/pull/123") == PRInfo(
+        owner="conda-forge", repo="feedstocks", pr_number=123
+    )
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        pytest.param("https://github.com/conda/rattler", id="repo"),
+        pytest.param("https://github.com/conda/rattler/actions", id="actions"),
+        pytest.param(
+            "https://github.com/conda/rattler/actions/runs/not-a-number", id="no-run-id"
+        ),
+        pytest.param("https://github.com/runs/1", id="runs-without-repo"),
+        pytest.param(
+            "https://gitlab.com/conda/rattler/actions/runs/1", id="other-host"
+        ),
+    ],
+)
+def test_parse_ci_url_invalid(url: str):
+    """URLs that are neither a PR nor a workflow run URL are rejected."""
+    with pytest.raises(InvalidURLError):
+        parse_ci_url(url)
+
+
+def test_parse_ci_url_invalid_pr_url():
+    """A malformed PR URL still raises the more specific InvalidPRURLError."""
+    with pytest.raises(InvalidPRURLError):
+        parse_ci_url("https://github.com/pull")
+
+
+def test_fetch_workflow_run(mock_httpx_client):
+    """Test fetch_workflow_run returns the head SHA of the run."""
+    run_info = WorkflowRunInfo(owner="conda", repo="rattler", run_id=456)
+
+    expected_url = f"https://api.github.com/repos/{run_info.owner}/{run_info.repo}/actions/runs/{run_info.run_id}"
+    mock_client = mock_httpx_client(
+        json_data={"head_sha": "abc123def456", "status": "in_progress"},
+        expected_url=expected_url,
+    )
+
+    assert fetch_workflow_run(mock_client, run_info).head_sha == "abc123def456"
+    mock_client.get.assert_called_once()
+
+
+def test_resolve_head_sha_for_workflow_run(mock_httpx_client):
+    """resolve_head_sha uses the workflow run API for workflow run URLs."""
+    run_info = WorkflowRunInfo(owner="conda", repo="rattler", run_id=456)
+
+    mock_client = mock_httpx_client(
+        json_data={"head_sha": "run-sha"},
+        expected_url=f"https://api.github.com/repos/{run_info.owner}/{run_info.repo}/actions/runs/{run_info.run_id}",
+    )
+
+    assert resolve_head_sha(mock_client, run_info) == "run-sha"
+
+
+def test_resolve_head_sha_for_pr(mock_httpx_client):
+    """resolve_head_sha uses the PR API for PR URLs."""
+    pr_info = PRInfo(owner="conda-forge", repo="mock-repo", pr_number=123)
+
+    mock_client = mock_httpx_client(
+        json_data={
+            "head": {
+                "sha": "pr-sha",
+                "ref": "feature-branch",
+                "repo": {"full_name": "conda-forge/mock-repo"},
+            },
+            "base": {
+                "sha": "def456abc789",
+                "ref": "main",
+                "repo": {"full_name": "conda-forge/mock-repo"},
+            },
+        },
+        expected_url=f"https://api.github.com/repos/{pr_info.owner}/{pr_info.repo}/pulls/{pr_info.pr_number}",
+    )
+
+    assert resolve_head_sha(mock_client, pr_info) == "pr-sha"
 
 
 def test_fetch_pr_details(mock_httpx_client):
