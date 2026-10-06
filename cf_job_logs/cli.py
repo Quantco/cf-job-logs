@@ -16,10 +16,13 @@ from cf_job_logs.gh_auth import (
     configure_github_auth,
 )
 from cf_job_logs.github_api import (
+    InvalidURLError,
     fetch_github_check_runs,
     fetch_pr_details,
     get_github_headers,
+    parse_ci_url,
     parse_pr_url,
+    resolve_head_sha,
 )
 from cf_job_logs.models import CheckRun, CIProvider, CIRecord, CIResult
 from cf_job_logs.polling import format_summary_table, wait_for_check_runs
@@ -188,7 +191,7 @@ def download_log(pr_url: str, job_id: str, no_sanitize: bool) -> None:
 
 
 @cli.command("wait-for-ci")
-@click.argument("pr_url")
+@click.argument("url")
 @click.option(
     "--interval",
     default=30.0,
@@ -213,17 +216,24 @@ def download_log(pr_url: str, job_id: str, no_sanitize: bool) -> None:
     help="Output in JSON format.",
 )
 def wait_for_ci(
-    pr_url: str,
+    url: str,
     interval: float,
     timeout: float | None,
     fail_fast: bool,
     output_json: bool,
 ) -> None:
-    """Wait for all CI checks to complete on a PR, then report results."""
+    """Wait for all CI checks on a PR or workflow run to complete, then report results.
+
+    URL is either a PR URL or a GitHub Actions workflow run URL; in both cases all
+    check runs on the corresponding commit are awaited.
+    """
+    try:
+        target = parse_ci_url(url)
+    except InvalidURLError as e:
+        raise click.ClickException(str(e)) from e
+
     with httpx.Client(timeout=HTTP_TIMEOUT) as client:
-        pr_info = parse_pr_url(pr_url)
-        pr_details = fetch_pr_details(client, pr_info)
-        head_sha = pr_details.head.sha
+        head_sha = resolve_head_sha(client, target)
 
         def _progress(check_runs: list[CheckRun]) -> None:
             done = sum(1 for s in check_runs if s.status == "completed")
@@ -234,7 +244,7 @@ def wait_for_ci(
 
         result = wait_for_check_runs(
             http_client=client,
-            pr_info=pr_info,
+            repo_info=target,
             head_sha=head_sha,
             interval=interval,
             timeout=timeout,
