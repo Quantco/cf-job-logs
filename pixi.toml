@@ -10,9 +10,11 @@ cf-job-logs = "cf-job-logs"
 
 [package]
 name = "cf-job-logs"
+
 [package.build.backend]
 name = "pixi-build-python"
 version = "*"
+
 [package.host-dependencies]
 python = ">=3.13"
 hatchling = "*"
@@ -34,6 +36,7 @@ pytest-asyncio = ">=1.3.0,<2"
 pytest-vcr = "*"
 mypy = "*"
 typing_extensions = "*"
+
 [feature.test.tasks]
 test = "pytest"
 test-coverage = "pytest --cov=cf_job_logs --cov-report=xml --cov-report=term-missing"
@@ -43,6 +46,7 @@ python = "*"
 hatchling = "*"
 python-build = "*"
 twine = ">=6"
+
 [feature.build.tasks]
 build-wheel = "python -m build --no-isolation ."
 check-wheel = "twine check dist/*"
@@ -51,20 +55,26 @@ check-wheel = "twine check dist/*"
 lefthook = "*"
 ruff = "*"
 prettier = "*"
-taplo = "*"
+tombi = "*"
 pre-commit-hooks = "*"
 typos = "*"
 zizmor = "*"
+
 [feature.lint.tasks]
 pre-commit-install = "lefthook install"
 lint = "lefthook run pre-commit --all-files"
 
 [feature.py313.dependencies]
 python = "3.13.*"
+
 [feature.py314.dependencies]
 python = "3.14.*"
+
+[feature.py315.dependencies]
+python = "3.15.*"
 
 [environments]
 default = ["test", "build", "lint"]
 py313 = ["py313", "test"]
 py314 = ["py314", "test"]
+py315 = ["py315", "test"]
