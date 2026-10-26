@@ -42,7 +42,6 @@ def _get_ci_records(pr_url: str) -> list[CIRecord]:
 
 def _fetch_raw_log(record: CIRecord) -> str:
     """Fetch raw log content for a provider-specific CI record."""
-
     if not record.log:
         raise ValueError(f"Record '{record.name}' has no log information.")
 

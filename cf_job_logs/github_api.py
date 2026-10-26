@@ -236,8 +236,10 @@ def get_azure_build_info(
 
     Args:
         check_runs: List of CheckRun instances.
+
     Returns:
         A tuple of (build_id, project_id).
+
     Raises:
         NoCompletedCheckRunsError: If no completed check runs are found.
     """
@@ -334,7 +336,6 @@ def fetch_recipe_file(
     Raises:
         RecipeNotFoundError: If no recipe file is found in the PR branch.
     """
-
     changed_files = fetch_changed_files_in_pr(http_client, pr_info)
     recipe_paths = [
         path

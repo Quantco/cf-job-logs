@@ -21,11 +21,11 @@ dependencies = ["click>=8.0.0,<9", "httpx>=0.28.1,<0.29", "pydantic>=2.12.5,<3"]
 [project.urls]
 repository = "https://github.com/quantco/cf-job-logs"
 
-[tool.setuptools.package-data]
-cf_job_logs = ["py.typed"]
-
 [project.scripts]
 cf-job-logs = "cf_job_logs.cli:cli"
+
+[tool.setuptools.package-data]
+cf_job_logs = ["py.typed"]
 
 [tool.ruff]
 line-length = 88

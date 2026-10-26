@@ -1,8 +1,2 @@
-<<<<<<< before updating
-pixi.lock merge=binary linguist-language=YAML linguist-generated=true
-tests/cassettes/** linguist-generated=true
-||||||| last update
-pixi.lock merge=binary linguist-language=YAML linguist-generated=true
-=======
 pixi.lock merge=binary linguist-language=YAML linguist-generated=true -diff
->>>>>>> after updating
+tests/cassettes/** linguist-generated=true

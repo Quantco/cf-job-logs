@@ -86,6 +86,7 @@ class TimelineRecord(CIRecord):
 
         Args:
             line_number: Optional line number to link to a specific line.
+
         Returns:
             The Azure DevOps web UI URL for this timeline record.
         """
@@ -223,7 +224,6 @@ class GitHubContentFile(BaseModel):
             ValueError: If content cannot be decoded.
             UnicodeDecodeError: If content is not valid UTF-8.
         """
-
         if not self.content_base64:
             raise ValueError("No content to decode")
 

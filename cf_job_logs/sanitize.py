@@ -14,15 +14,14 @@ TIMESTAMP_PREFIX_PATTERN = re.compile(
 
 
 def sanitize_log_text(log_text: str) -> str:
-    """Remove timestamps from each line of the log text and filter out verbose
-    build output.
+    """Remove timestamps from the log text and filter out verbose build output.
 
     Args:
         log_text: The original log text.
+
     Returns:
         The log text with timestamps removed and verbose lines filtered out.
     """
-
     # Skip to relevant build output if possible
     if "rattler-build build" in log_text:
         start_log_idx = log_text.index("rattler-build build")

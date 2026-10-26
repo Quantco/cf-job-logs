@@ -57,8 +57,7 @@ def test_parse_pr_url_invalid_url():
 
 
 def test_fetch_pr_details(mock_httpx_client):
-    """Test fetch_pr_details returns full PR information including head and base
-    branches."""
+    """Test fetch_pr_details returns full PR info including head and base branches."""
     pr_info = PRInfo(owner="conda-forge", repo="mock-repo", pr_number=123)
 
     expected_url = f"https://api.github.com/repos/{pr_info.owner}/{pr_info.repo}/pulls/{pr_info.pr_number}"
@@ -155,8 +154,7 @@ def test_fetch_github_check_runs_empty(mock_httpx_client):
 
 
 def test_get_azure_build_info_extracts_build_info():
-    """Test get_azure_build_info extracts build_id and project_id from Azure Pipelines
-    check runs."""
+    """Test get_azure_build_info extracts build and project IDs from Azure check runs."""
     from cf_job_logs.models import CheckRun, GithubApp
 
     check_runs = [
@@ -185,8 +183,7 @@ def test_get_azure_build_info_extracts_build_info():
 
 
 def test_get_azure_build_info_raises_when_no_valid_check_runs():
-    """Test get_azure_build_info raises NoCompletedCheckRunsError when no valid Azure
-    check runs found."""
+    """Test get_azure_build_info raises when no valid Azure check runs are found."""
     from cf_job_logs.models import CheckRun, GithubApp
 
     # No Azure Pipelines check runs
@@ -329,8 +326,7 @@ def test_fetch_check_run_status_handles_http_error(mock_httpx_client):
 
 @requires_github_token
 def test_fetch_changed_files_in_pr_regular_feedstock_online():
-    """Test that get_changed_files_in_pr correctly identifies recipe files in a regular
-    feedstock PR."""
+    """Test get_changed_files_in_pr identifies recipe files in a regular feedstock PR."""
     pr_info = PRInfo(owner="conda-forge", repo="fastapi-feedstock", pr_number=187)
 
     with httpx.Client(timeout=30.0) as http_client:
@@ -340,8 +336,7 @@ def test_fetch_changed_files_in_pr_regular_feedstock_online():
 
 @requires_github_token
 def test_fetch_changed_files_in_pr_staged_recipes_recipe_yaml_online():
-    """Test fetch_changed_files_in_pr returns the correct changed recipe file for a
-    staged-recipes PR with recipe.yaml."""
+    """Test fetch_changed_files_in_pr for a staged-recipes PR with recipe.yaml."""
     pr_info = PRInfo(owner="conda-forge", repo="staged-recipes", pr_number=31205)
 
     with httpx.Client(timeout=30.0) as http_client:
@@ -351,8 +346,7 @@ def test_fetch_changed_files_in_pr_staged_recipes_recipe_yaml_online():
 
 @requires_github_token
 def test_fetch_changed_files_in_pr_staged_recipes_meta_yaml_online():
-    """Test fetch_changed_files_in_pr returns the correct changed recipe file for a
-    staged-recipes PR with meta.yaml."""
+    """Test fetch_changed_files_in_pr for a staged-recipes PR with meta.yaml."""
     pr_info = PRInfo(owner="conda-forge", repo="staged-recipes", pr_number=31610)
 
     with httpx.Client(timeout=30.0) as http_client:
@@ -433,9 +427,7 @@ def test_fetch_recipe_file_raises_recipe_not_found_error(
 
 
 def test_fetch_changed_files_in_pr_with_pagination():
-    """Test fetch_changed_files_in_pr handles pagination correctly for PRs with many
-    changed files."""
-
+    """Test fetch_changed_files_in_pr handles pagination for PRs with many files."""
     pr_info = PRInfo(owner="conda-forge", repo="mock-repo", pr_number=123)
 
     # Simulate 3 pages of results
