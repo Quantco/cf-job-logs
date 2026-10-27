@@ -62,7 +62,6 @@ async def download_pr_async(
         GhCliUnavailableError: If auth_mode is GH but the `gh` CLI has no token.
         RuntimeError: For other HTTP/API errors.
     """
-
     if auth_mode is not None:
         configure_github_auth(auth_mode)
 

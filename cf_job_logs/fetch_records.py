@@ -56,10 +56,10 @@ def fetch_ci_records(
         http_client: The HTTP client to use for requests.
         check_runs: List of GitHub check runs from the PR.
         pr_info: Information about the pull request.
+
     Returns:
         List of CI records from Azure Pipelines and/or GitHub Actions check runs.
     """
-
     records: list[CIRecord] = []
 
     azure_check_runs = [
@@ -131,7 +131,6 @@ async def _fetch_log_async(client: httpx.AsyncClient, record: CIRecord) -> str:
     Raises:
         httpx.HTTPError: If the HTTP request fails.
     """
-
     if not record.log:
         raise ValueError("Record does not contain log information.")
 
@@ -160,7 +159,6 @@ async def fetch_all_logs_async(
     Returns:
         List of failed steps with their log content.
     """
-
     # reuse a single client for all requests
     async with httpx.AsyncClient(timeout=30.0) as client:
 
