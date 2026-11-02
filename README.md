@@ -85,10 +85,18 @@ Wait for all CI checks to complete on a PR, then report which passed or failed:
 cf-job-logs wait-for-ci https://github.com/conda-forge/some-feedstock/pull/123
 ```
 
+Instead of a PR URL, you can also pass a GitHub Actions workflow run URL (optionally
+pointing at a specific job or attempt). All check runs on the commit the run belongs to
+are awaited:
+
+```bash
+cf-job-logs wait-for-ci https://github.com/conda/rattler/actions/runs/34486305620
+```
+
 Customize the polling interval and timeout:
 
 ```bash
-cf-job-logs wait-for-ci --interval 60 --timeout 3600 <pr_url>
+cf-job-logs wait-for-ci --interval 60 --timeout 3600 <url>
 ```
 
 By default, `--fail-fast` is enabled: the command returns as soon as any check fails without waiting for the rest. Use `--no-fail-fast` to wait for all checks to complete.

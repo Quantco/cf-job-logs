@@ -6,7 +6,7 @@ import logging
 from collections.abc import Callable
 from dataclasses import dataclass
 from functools import wraps
-from typing import Concatenate
+from typing import Concatenate, assert_never
 from urllib.parse import urlparse
 
 import httpx
@@ -19,6 +19,7 @@ from cf_job_logs.models import (
     GitHubContentFile,
     PRFile,
     PullRequestResponse,
+    WorkflowRunResponse,
 )
 
 logger = logging.getLogger(__name__)
@@ -34,7 +35,11 @@ class RecipeNotFoundError(Exception):
     """Raised when the recipe file is not found in the PR branch."""
 
 
-class InvalidPRURLError(Exception):
+class InvalidURLError(Exception):
+    """Raised when a GitHub URL cannot be parsed."""
+
+
+class InvalidPRURLError(InvalidURLError):
     """Raised when a PR URL cannot be parsed."""
 
 
@@ -43,12 +48,25 @@ class NoCompletedCheckRunsError(Exception):
 
 
 @dataclass
-class PRInfo:
-    """Parsed information from a GitHub PR URL."""
+class RepoInfo:
+    """A GitHub repository."""
 
     owner: str
     repo: str
+
+
+@dataclass
+class PRInfo(RepoInfo):
+    """Parsed information from a GitHub PR URL."""
+
     pr_number: int
+
+
+@dataclass
+class WorkflowRunInfo(RepoInfo):
+    """Parsed information from a GitHub Actions workflow run URL."""
+
+    run_id: int
 
 
 def get_github_headers() -> dict[str, str]:
@@ -164,6 +182,48 @@ def parse_pr_url(pr_url: str) -> PRInfo:
         )
 
 
+def parse_ci_url(url: str) -> PRInfo | WorkflowRunInfo:
+    """Parse a GitHub PR URL or a GitHub Actions workflow run URL.
+
+    Args:
+        url: A PR URL (e.g. https://github.com/conda-forge/feedstocks/pull/123) or a
+            workflow run URL (e.g. https://github.com/conda/rattler/actions/runs/456).
+            Workflow run URLs may also point at a specific job or attempt.
+
+    Returns:
+        A PRInfo for PR URLs, a WorkflowRunInfo for workflow run URLs.
+
+    Raises:
+        InvalidURLError: If the URL is neither a PR nor a workflow run URL.
+    """
+    parsed_url = urlparse(url)
+    parts = parsed_url.path.rstrip("/").split("/")
+
+    if parsed_url.netloc != "github.com":
+        raise InvalidURLError(
+            f"Invalid URL: {url}.\n\nOnly github.com URLs are supported."
+        )
+
+    if "pull" in parts:
+        return parse_pr_url(url)
+
+    try:
+        runs_idx = parts.index("runs")
+        if runs_idx < 3 or parts[runs_idx - 1] != "actions":
+            raise ValueError("`runs` is not preceded by `owner/repo/actions`")
+        owner = parts[runs_idx - 3]
+        repo = parts[runs_idx - 2]
+        run_id = int(parts[runs_idx + 1])
+        return WorkflowRunInfo(owner=owner, repo=repo, run_id=run_id)
+    except (ValueError, IndexError):
+        raise InvalidURLError(
+            f"Invalid URL: `{url}`.\n\n"
+            "Please provide a GitHub PR or workflow run URL in one of these formats:\n"
+            "`https://github.com/owner/repo/pull/number`\n"
+            "`https://github.com/owner/repo/actions/runs/run_id`"
+        )
+
+
 def fetch_pr_details(http_client: httpx.Client, pr_info: PRInfo) -> PullRequestResponse:
     """Fetch full PR details from GitHub API.
 
@@ -189,19 +249,69 @@ def fetch_pr_details(http_client: httpx.Client, pr_info: PRInfo) -> PullRequestR
         raise RuntimeError(f"Error fetching PR details: {e}{rate_limit_hint(e)}") from e
 
 
+def fetch_workflow_run(
+    http_client: httpx.Client, run_info: WorkflowRunInfo
+) -> WorkflowRunResponse:
+    """Fetch details of a GitHub Actions workflow run.
+
+    Args:
+        http_client: The HTTP client to use for the request.
+        run_info: Parsed workflow run information.
+
+    Returns:
+        The workflow run details including the head commit SHA.
+
+    Raises:
+        RuntimeError: If fetching the workflow run fails.
+    """
+    try:
+        response = http_client.get(
+            f"{GITHUB_API_BASE}/repos/{run_info.owner}/{run_info.repo}/actions/runs/{run_info.run_id}",
+            headers=get_github_headers(),
+        )
+        logger.debug("Fetching workflow run from GitHub API: %s", response.url)
+        response.raise_for_status()
+        return WorkflowRunResponse.model_validate(response.json())
+    except httpx.HTTPError as e:
+        raise RuntimeError(
+            f"Error fetching workflow run details: {e}{rate_limit_hint(e)}"
+        ) from e
+
+
+def resolve_head_sha(
+    http_client: httpx.Client, target: PRInfo | WorkflowRunInfo
+) -> str:
+    """Resolve the commit SHA whose check runs belong to the given CI target.
+
+    Args:
+        http_client: The HTTP client to use for the request.
+        target: A parsed PR or workflow run URL.
+
+    Returns:
+        The head commit SHA of the PR or workflow run.
+    """
+    match target:
+        case PRInfo():
+            return fetch_pr_details(http_client, target).head.sha
+        case WorkflowRunInfo():
+            return fetch_workflow_run(http_client, target).head_sha
+        case _ as unreachable:
+            assert_never(unreachable)
+
+
 @paginate_github_api
 def fetch_github_check_runs(
     http_client: httpx.Client,
-    pr_info: PRInfo,
+    repo_info: RepoInfo,
     head_sha: str,
     page: int = 1,
     per_page: int = GITHUB_PER_PAGE,
 ) -> list[CheckRun]:
-    """Get the check runs for a commit SHA in a PR.
+    """Get the check runs for a commit SHA in a repository.
 
     Args:
         http_client: The HTTP client to use for the request.
-        pr_info: Parsed PR information.
+        repo_info: The repository the commit belongs to.
         head_sha: The commit SHA to check.
         page: Page number to fetch (handled by decorator).
         per_page: Number of items per page (handled by decorator).
@@ -214,7 +324,7 @@ def fetch_github_check_runs(
     """
     try:
         status_response = http_client.get(
-            f"{GITHUB_API_BASE}/repos/{pr_info.owner}/{pr_info.repo}/commits/{head_sha}/check-runs",
+            f"{GITHUB_API_BASE}/repos/{repo_info.owner}/{repo_info.repo}/commits/{head_sha}/check-runs",
             headers=get_github_headers(),
             params={"page": page, "per_page": per_page},
         )

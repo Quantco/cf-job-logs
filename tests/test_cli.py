@@ -7,19 +7,19 @@ import json
 from contextlib import contextmanager
 from unittest.mock import patch
 
+import pytest
 from click.testing import CliRunner
 
 from cf_job_logs.cli import cli
+from cf_job_logs.github_api import WorkflowRunInfo
 from cf_job_logs.models import (
     CheckRun,
     CIResult,
     GitHubActionsRecord,
     GithubApp,
     LogInfo,
-    PRBranch,
-    PRRepo,
-    PullRequestResponse,
     TimelineRecord,
+    WorkflowRunResponse,
 )
 from cf_job_logs.polling import WaitResult
 
@@ -65,6 +65,7 @@ SAMPLE_RECORDS = [
 ]
 
 PR_URL = "https://github.com/conda-forge/some-feedstock/pull/42"
+RUN_URL = "https://github.com/conda/rattler/actions/runs/34486305620"
 PATCH_RECORDS = patch("cf_job_logs.cli._get_ci_records", return_value=SAMPLE_RECORDS)
 PATCH_RECORDS_EMPTY = patch("cf_job_logs.cli._get_ci_records", return_value=[])
 
@@ -191,39 +192,67 @@ CHECK_RUN_FAILED = CheckRun(
 
 @contextmanager
 def _patch_wait(check_runs: list[CheckRun], timed_out: bool = False):
-    mock_pr = PullRequestResponse(
-        head=PRBranch(
-            sha="abc123", ref="feature", repo=PRRepo(full_name="conda-forge/test")
-        ),
-        base=PRBranch(
-            sha="def456", ref="main", repo=PRRepo(full_name="conda-forge/test")
-        ),
-    )
     wait_result = WaitResult(check_runs=check_runs, timed_out=timed_out)
     with (
-        patch("cf_job_logs.cli.fetch_pr_details", return_value=mock_pr),
+        patch("cf_job_logs.cli.resolve_head_sha", return_value="abc123"),
         patch("cf_job_logs.cli.wait_for_check_runs", return_value=wait_result),
     ):
         yield
 
 
-def test_wait_for_ci_all_passed():
+@pytest.mark.parametrize("url", [PR_URL, RUN_URL], ids=["pr-url", "run-url"])
+def test_wait_for_ci_all_passed(url: str):
     runner = CliRunner()
     with _patch_wait([CHECK_RUN_PASSED]):
-        result = runner.invoke(cli, ["wait-for-ci", PR_URL])
+        result = runner.invoke(cli, ["wait-for-ci", url])
 
     assert result.exit_code == 0
     assert "linux_64" in result.output
     assert "succeeded" in result.output
 
 
-def test_wait_for_ci_with_failure():
+@pytest.mark.parametrize("url", [PR_URL, RUN_URL], ids=["pr-url", "run-url"])
+def test_wait_for_ci_with_failure(url: str):
     runner = CliRunner()
     with _patch_wait([CHECK_RUN_PASSED, CHECK_RUN_FAILED]):
-        result = runner.invoke(cli, ["wait-for-ci", PR_URL])
+        result = runner.invoke(cli, ["wait-for-ci", url])
 
     assert result.exit_code == 1
     assert "failed" in result.output
+
+
+def test_wait_for_ci_run_url_resolves_run_head_sha():
+    """A workflow run URL is resolved to the run's head SHA before polling."""
+    runner = CliRunner()
+    wait_result = WaitResult(check_runs=[CHECK_RUN_PASSED], timed_out=False)
+    with (
+        patch(
+            "cf_job_logs.github_api.fetch_workflow_run",
+            return_value=WorkflowRunResponse(head_sha="run-sha"),
+        ) as mock_fetch_run,
+        patch(
+            "cf_job_logs.cli.wait_for_check_runs", return_value=wait_result
+        ) as mock_wait,
+    ):
+        result = runner.invoke(cli, ["wait-for-ci", RUN_URL])
+
+    assert result.exit_code == 0
+    run_info = mock_fetch_run.call_args.args[1]
+    assert run_info == WorkflowRunInfo(
+        owner="conda", repo="rattler", run_id=34486305620
+    )
+    assert mock_wait.call_args.kwargs["repo_info"] == run_info
+    assert mock_wait.call_args.kwargs["head_sha"] == "run-sha"
+
+
+def test_wait_for_ci_invalid_url():
+    """An unsupported URL fails with a message listing both supported formats."""
+    runner = CliRunner()
+    result = runner.invoke(cli, ["wait-for-ci", "https://github.com/conda/rattler"])
+
+    assert result.exit_code == 1
+    assert "/pull/number" in result.output
+    assert "/actions/runs/run_id" in result.output
 
 
 def test_wait_for_ci_timed_out():
